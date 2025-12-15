@@ -1,5 +1,6 @@
 {
   "name": "tangible/object",
+  "description": "A WordPress tool suite for building data-driven interfaces with a clean extensible architecture.",
   "repositories": [],
   "require-dev": {
     "phpunit/phpunit": "^9.6",
@@ -17,5 +18,6 @@
     }
   },
   "minimum-stability": "dev",
-  "prefer-stable": true
+  "prefer-stable": true,
+  "license": "GPL-2.0-only"
 }
