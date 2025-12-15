@@ -1,5 +1,5 @@
 <?php
-namespace Tangible\Framework\Tests;
+namespace Tangible\Object\Tests;
 
 use Tangible\DataObject\DataSet;
 use Tangible\DataObject\SingularObject;
@@ -16,6 +16,12 @@ use Tangible\RequestHandler\Validators;
  * - Custom validators
  * - Lifecycle hooks (before/after update)
  * - Result for success/error responses
+ *
+ * @covers \Tangible\RequestHandler\SingularHandler
+ * @covers \Tangible\RequestHandler\BaseHandler
+ * @covers \Tangible\RequestHandler\Result
+ * @covers \Tangible\RequestHandler\ValidationError
+ * @covers \Tangible\RequestHandler\Validators
  */
 class SingularHandler_TestCase extends \WP_UnitTestCase {
 

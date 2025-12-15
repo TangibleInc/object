@@ -1,0 +1,76 @@
+name: PHPUnit Tests
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: wordpress_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    strategy:
+      matrix:
+        php-version: ['8.1', '8.2', '8.3']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP ${{ matrix.php-version }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: mysqli, pdo_mysql
+          coverage: none
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-progress
+
+      - name: Checkout WordPress develop
+        uses: actions/checkout@v4
+        with:
+          repository: WordPress/wordpress-develop
+          path: wordpress-develop
+
+      - name: Setup WordPress test config
+        run: |
+          cp wordpress-develop/wp-tests-config-sample.php wordpress-develop/wp-tests-config.php
+          sed -i "s/youremptytestdbnamehere/wordpress_test/" wordpress-develop/wp-tests-config.php
+          sed -i "s/yourusernamehere/root/" wordpress-develop/wp-tests-config.php
+          sed -i "s/yourpasswordhere/root/" wordpress-develop/wp-tests-config.php
+          sed -i "s/localhost/127.0.0.1/" wordpress-develop/wp-tests-config.php
+
+      - name: Run PHPUnit
+        env:
+          WORDPRESS_DEVELOP_DIR: ${{ github.workspace }}/wordpress-develop
+        run: ./vendor/bin/phpunit

@@ -1,9 +1,7 @@
 <?php
-namespace Tangible\Framework\Tests;
+namespace Tangible\Object\Tests;
 
 use Tangible\DataObject\DataSet;
-use Tangible\DataObject\PluralObject;
-use Tangible\DataObject\SingularObject;
 use Tangible\EditorLayout\Layout;
 use Tangible\EditorLayout\Section;
 use Tangible\EditorLayout\Tabs;
@@ -20,6 +18,9 @@ use Tangible\Renderer\HtmlRenderer;
  * - Rendering entity lists for PluralObject
  * - Field type to input type mapping
  * - Basic form structure (sections, fields, sidebar, actions)
+ *
+ * @covers \Tangible\Renderer\HtmlRenderer
+ * @covers \Tangible\Renderer\Renderer
  */
 class Renderer_TestCase extends \WP_UnitTestCase {
 

@@ -1,5 +1,5 @@
 <?php
-namespace Tangible\Framework\Tests;
+namespace Tangible\Object\Tests;
 
 use Tangible\DataObject\DataSet;
 use Tangible\DataObject\SingularObject;
@@ -15,6 +15,13 @@ use Tangible\DataObject\Storage\CustomPostTypeStorage;
  * - Layer 2: Storage adapters (SingularObject for options, PluralObject for CPT)
  *
  * Starting with simple fields only: string, integer, boolean
+ *
+ * @covers \Tangible\DataObject\DataSet
+ * @covers \Tangible\DataObject\SingularObject
+ * @covers \Tangible\DataObject\PluralObject
+ * @covers \Tangible\DataObject\PluralObject\Entity
+ * @covers \Tangible\DataObject\Storage\OptionStorage
+ * @covers \Tangible\DataObject\Storage\CustomPostTypeStorage
  */
 class DataObject_TestCase extends \WP_UnitTestCase {
 
