@@ -17,6 +17,13 @@
       "Tangible\\Object\\Tests\\": "./tests/phpunit/"
     }
   },
+  "scripts": {
+    "test": "phpunit",
+    "setup:integrations": [
+      "@setup:database-module"
+    ],
+    "setup:database-module": "[ -d ../database-module ] || git clone https://github.com/tangibleinc/database-module.git ../database-module"
+  },
   "minimum-stability": "dev",
   "prefer-stable": true,
   "license": "GPL-2.0-only"
