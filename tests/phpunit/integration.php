@@ -1,5 +1,5 @@
 <?php
-namespace Tangible\Framework\Tests;
+namespace Tangible\Object\Tests;
 
 use Tangible\DataObject\DataSet;
 use Tangible\DataObject\PluralObject;
@@ -14,6 +14,19 @@ use Tangible\Renderer\HtmlRenderer;
 
 /**
  * Integration tests - All 4 layers working together
+ *
+ * @covers \Tangible\DataObject\DataSet
+ * @covers \Tangible\DataObject\PluralObject
+ * @covers \Tangible\DataObject\PluralObject\Entity
+ * @covers \Tangible\EditorLayout\Layout
+ * @covers \Tangible\EditorLayout\Section
+ * @covers \Tangible\EditorLayout\Tabs
+ * @covers \Tangible\EditorLayout\Tab
+ * @covers \Tangible\EditorLayout\Sidebar
+ * @covers \Tangible\Renderer\HtmlRenderer
+ * @covers \Tangible\RequestHandler\PluralHandler
+ * @covers \Tangible\RequestHandler\Result
+ * @covers \Tangible\RequestHandler\Validators
  */
 class Integration_TestCase extends \WP_UnitTestCase {
 

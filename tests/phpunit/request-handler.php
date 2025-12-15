@@ -1,5 +1,5 @@
 <?php
-namespace Tangible\Framework\Tests;
+namespace Tangible\Object\Tests;
 
 use Tangible\DataObject\DataSet;
 use Tangible\DataObject\PluralObject;
@@ -17,6 +17,13 @@ use Tangible\RequestHandler\Validators;
  * - Lifecycle hooks (before/after create, update, delete)
  * - Permission checks
  * - Result for success/error responses
+ *
+ * @covers \Tangible\RequestHandler\Handler
+ * @covers \Tangible\RequestHandler\BaseHandler
+ * @covers \Tangible\RequestHandler\PluralHandler
+ * @covers \Tangible\RequestHandler\Result
+ * @covers \Tangible\RequestHandler\ValidationError
+ * @covers \Tangible\RequestHandler\Validators
  */
 class Handler_TestCase extends \WP_UnitTestCase {
 

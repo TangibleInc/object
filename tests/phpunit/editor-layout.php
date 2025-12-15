@@ -1,5 +1,5 @@
 <?php
-namespace Tangible\Framework\Tests;
+namespace Tangible\Object\Tests;
 
 use Tangible\DataObject\DataSet;
 use Tangible\EditorLayout\Layout;
@@ -7,7 +7,6 @@ use Tangible\EditorLayout\Section;
 use Tangible\EditorLayout\Tabs;
 use Tangible\EditorLayout\Tab;
 use Tangible\EditorLayout\Sidebar;
-use Tangible\EditorLayout\Field;
 use Tangible\EditorLayout\Exception\InvalidFieldException;
 
 /**
@@ -29,6 +28,15 @@ use Tangible\EditorLayout\Exception\InvalidFieldException;
  *     ],
  *     'sidebar' => ['fields' => [...], 'actions' => [...]],
  * ]
+ *
+ * @covers \Tangible\EditorLayout\Layout
+ * @covers \Tangible\EditorLayout\Section
+ * @covers \Tangible\EditorLayout\Tabs
+ * @covers \Tangible\EditorLayout\Tab
+ * @covers \Tangible\EditorLayout\Sidebar
+ * @covers \Tangible\EditorLayout\Field
+ * @covers \Tangible\EditorLayout\Condition
+ * @covers \Tangible\EditorLayout\Exception\InvalidFieldException
  */
 class EditorLayout_TestCase extends \WP_UnitTestCase {
 
