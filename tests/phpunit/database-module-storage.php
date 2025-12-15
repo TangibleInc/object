@@ -13,6 +13,8 @@ use Tangible\DataObject\Storage\DatabaseModuleStorage;
  * the PluralStorage interface using the database-module (TDB) library.
  *
  * @covers \Tangible\DataObject\Storage\DatabaseModuleStorage
+ * @covers \Tangible\DataObject\PluralObject
+ * @covers \Tangible\DataObject\PluralObject\Entity
  */
 class DatabaseModuleStorage_TestCase extends \WP_UnitTestCase {
 
