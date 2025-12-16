@@ -34,6 +34,9 @@ class HtmlRenderer implements Renderer {
     /**
      * Render an editor form for an entity.
      *
+     * Returns form contents without the <form> wrapper, allowing the caller
+     * to control form attributes (action, method) and add nonce fields.
+     *
      * @param Layout $layout The editor layout structure.
      * @param array  $data   The entity data to populate the form.
      * @return string The rendered HTML.
@@ -43,7 +46,7 @@ class HtmlRenderer implements Renderer {
         $this->data = $data;
 
         $structure = $layout->get_structure();
-        $html = '<form method="post">';
+        $html = '';
 
         // Render main content items
         foreach ( $structure['items'] as $item ) {
@@ -54,8 +57,6 @@ class HtmlRenderer implements Renderer {
         if ( isset( $structure['sidebar'] ) ) {
             $html .= $this->render_sidebar( $structure['sidebar'] );
         }
-
-        $html .= '</form>';
 
         return $html;
     }
