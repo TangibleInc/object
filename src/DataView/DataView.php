@@ -149,6 +149,8 @@ class DataView {
             case 'database':
                 $storage = new DatabaseModuleStorage( $this->config->slug );
                 $settings = $this->schema_generator->generate_settings( $this->config->fields );
+                // Merge storage_options, allowing overrides (e.g., version number).
+                $settings = array_merge( $settings, $this->config->storage_options );
                 $storage->register( $this->config->slug, $settings );
                 return $storage;
 

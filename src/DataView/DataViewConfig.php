@@ -14,6 +14,7 @@ class DataViewConfig {
     public readonly string $mode;
     public readonly array $ui;
     public readonly string $capability;
+    public readonly array $storage_options;
 
     /**
      * Create a new DataViewConfig instance.
@@ -24,12 +25,13 @@ class DataViewConfig {
     public function __construct( array $config ) {
         $this->validate_required( $config );
 
-        $this->slug       = $config['slug'];
-        $this->label      = $config['label'];
-        $this->fields     = $config['fields'];
-        $this->storage    = $config['storage'] ?? 'cpt';
-        $this->mode       = $config['mode'] ?? 'plural';
-        $this->capability = $config['capability'] ?? 'manage_options';
+        $this->slug            = $config['slug'];
+        $this->label           = $config['label'];
+        $this->fields          = $config['fields'];
+        $this->storage         = $config['storage'] ?? 'cpt';
+        $this->mode            = $config['mode'] ?? 'plural';
+        $this->capability      = $config['capability'] ?? 'manage_options';
+        $this->storage_options = $config['storage_options'] ?? [];
 
         $this->ui = array_merge(
             [

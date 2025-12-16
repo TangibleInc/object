@@ -885,4 +885,96 @@ class DataView_TestCase extends \WP_UnitTestCase {
         $registry = $view->get_field_registry();
         $this->assertInstanceOf( FieldTypeRegistry::class, $registry );
     }
+
+    /**
+     * ==========================================================================
+     * DataView Storage Options Tests
+     * ==========================================================================
+     */
+
+    public function test_config_has_empty_storage_options_by_default(): void {
+        $config = new DataViewConfig( [
+            'slug'   => 'test_view',
+            'label'  => 'Test',
+            'fields' => [ 'name' => 'string' ],
+        ] );
+
+        $this->assertEquals( [], $config->storage_options );
+    }
+
+    public function test_config_accepts_storage_options(): void {
+        $config = new DataViewConfig( [
+            'slug'            => 'test_view',
+            'label'           => 'Test',
+            'fields'          => [ 'name' => 'string' ],
+            'storage_options' => [
+                'version' => 2,
+                'custom'  => 'value',
+            ],
+        ] );
+
+        $this->assertEquals( 2, $config->storage_options['version'] );
+        $this->assertEquals( 'value', $config->storage_options['custom'] );
+    }
+
+    public function test_dataview_database_uses_storage_options_version(): void {
+        if ( ! function_exists( 'tdb_register_table' ) ) {
+            $this->markTestSkipped( 'Database module (TDB) is not loaded.' );
+        }
+
+        $view = new DataView( [
+            'slug'            => 'dv_storage_opts',
+            'label'           => 'Item',
+            'fields'          => [ 'name' => 'string' ],
+            'storage'         => 'database',
+            'storage_options' => [
+                'version' => 5,
+            ],
+        ] );
+
+        /** @var DatabaseModuleStorage $storage */
+        $storage = $view->get_object()->get_storage();
+        $table = $storage->get_table();
+
+        // Table should be created with the specified version.
+        $this->assertNotNull( $table );
+    }
+
+    public function test_dataview_database_storage_options_override_defaults(): void {
+        if ( ! function_exists( 'tdb_register_table' ) ) {
+            $this->markTestSkipped( 'Database module (TDB) is not loaded.' );
+        }
+
+        // Create first with version 1.
+        $view1 = new DataView( [
+            'slug'            => 'dv_opts_override',
+            'label'           => 'Item',
+            'fields'          => [ 'name' => 'string' ],
+            'storage'         => 'database',
+            'storage_options' => [
+                'version' => 1,
+            ],
+        ] );
+
+        $handler1 = $view1->get_handler();
+        $result = $handler1->create( [ 'name' => 'Test Item' ] );
+        $this->assertTrue( $result->is_success() );
+        $id = $result->get_entity()->get_id();
+
+        // Create second view with same slug and version - should find the data.
+        $view2 = new DataView( [
+            'slug'            => 'dv_opts_override',
+            'label'           => 'Item',
+            'fields'          => [ 'name' => 'string' ],
+            'storage'         => 'database',
+            'storage_options' => [
+                'version' => 1,
+            ],
+        ] );
+
+        $handler2 = $view2->get_handler();
+        $result = $handler2->read( $id );
+        $this->assertTrue( $result->is_success() );
+        $this->assertEquals( 'Test Item', $result->get_entity()->get( 'name' ) );
+    }
 }
