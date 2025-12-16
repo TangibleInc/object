@@ -73,7 +73,7 @@ class Renderer_TestCase extends \WP_UnitTestCase {
         $this->assertIsString($html);
     }
 
-    public function test_render_editor_contains_form_tag(): void {
+    public function test_render_editor_returns_form_contents_without_wrapper(): void {
         $this->layout->section('General', function(Section $s) {
             $s->field('title');
         });
@@ -81,8 +81,11 @@ class Renderer_TestCase extends \WP_UnitTestCase {
         $renderer = new HtmlRenderer();
         $html = $renderer->render_editor($this->layout, []);
 
-        $this->assertStringContainsString('<form', $html);
-        $this->assertStringContainsString('</form>', $html);
+        // Renderer returns form contents without the <form> wrapper,
+        // allowing the caller to control form attributes and nonce.
+        $this->assertStringNotContainsString('<form', $html);
+        $this->assertStringNotContainsString('</form>', $html);
+        $this->assertStringContainsString('<fieldset>', $html);
     }
 
     public function test_render_editor_contains_section_label(): void {
@@ -446,9 +449,6 @@ class Renderer_TestCase extends \WP_UnitTestCase {
             'is_active' => true,
             'status' => 'published',
         ]);
-
-        // Form structure
-        $this->assertStringContainsString('<form', $html);
 
         // Sections
         $this->assertStringContainsString('General', $html);
