@@ -11,6 +11,7 @@ use Tangible\DataObject\Storage\OptionStorage;
 use Tangible\EditorLayout\Layout;
 use Tangible\Renderer\Renderer;
 use Tangible\Renderer\HtmlRenderer;
+use Tangible\Renderer\TangibleFieldsRenderer;
 use Tangible\RequestHandler\PluralHandler;
 use Tangible\RequestHandler\SingularHandler;
 
@@ -261,6 +262,12 @@ class DataView {
      */
     public function set_renderer( Renderer $renderer ): static {
         $this->renderer = $renderer;
+
+        // Pass field configs to TangibleFieldsRenderer for repeater support.
+        if ( $renderer instanceof TangibleFieldsRenderer ) {
+            $renderer->set_field_configs( $this->config->field_configs );
+        }
+
         $this->router->set_renderer( $renderer );
         return $this;
     }

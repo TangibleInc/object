@@ -404,12 +404,18 @@ class RequestRouter {
     protected function extract_post_data(): array {
         $data = [];
 
-        foreach ( $this->config->fields as $name => $type ) {
+        foreach ( $this->config->field_configs as $name => $config ) {
+            $type = $config['type'];
+
             // phpcs:ignore WordPress.Security.NonceVerification.Missing
             if ( ! isset( $_POST[ $name ] ) ) {
                 // Handle missing boolean fields (unchecked checkboxes).
                 if ( $this->registry->get_dataset_type( $type ) === DataSet::TYPE_BOOLEAN ) {
                     $data[ $name ] = false;
+                }
+                // Handle missing repeater fields (default to empty array).
+                if ( $type === 'repeater' ) {
+                    $data[ $name ] = '[]';
                 }
                 continue;
             }

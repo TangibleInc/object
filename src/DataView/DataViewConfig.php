@@ -16,6 +16,16 @@ class DataViewConfig {
     public readonly array $storage_options;
 
     /**
+     * Full field configurations including repeater sub-fields.
+     *
+     * Each entry is an array with at least 'type' key.
+     * For repeaters, also includes 'sub_fields', 'layout', 'default', etc.
+     *
+     * @var array<string, array>
+     */
+    public readonly array $field_configs;
+
+    /**
      * Singular label (for backward compatibility).
      *
      * @var string
@@ -56,11 +66,14 @@ class DataViewConfig {
         $this->validate_required( $config );
 
         $this->slug            = $config['slug'];
-        $this->fields          = $config['fields'];
         $this->storage         = $config['storage'] ?? 'cpt';
         $this->mode            = $config['mode'] ?? 'plural';
         $this->capability      = $config['capability'] ?? 'manage_options';
         $this->storage_options = $config['storage_options'] ?? [];
+
+        // Parse field configurations (supports both simple and complex definitions).
+        $this->field_configs = $this->parse_field_configs( $config['fields'] );
+        $this->fields        = $this->normalize_fields( $this->field_configs );
 
         // Normalize label to labels array.
         $this->labels = $this->normalize_labels( $config['label'] );
@@ -78,6 +91,67 @@ class DataViewConfig {
         );
 
         $this->validate();
+    }
+
+    /**
+     * Parse field configurations from mixed format.
+     *
+     * Accepts fields in two formats:
+     * - Simple: 'field_name' => 'type_string'
+     * - Complex: 'field_name' => ['type' => 'repeater', 'sub_fields' => [...], ...]
+     *
+     * @param array $fields Raw fields configuration.
+     * @return array Parsed field configs, each with at least 'type' key.
+     */
+    protected function parse_field_configs( array $fields ): array {
+        $configs = [];
+
+        foreach ( $fields as $name => $definition ) {
+            if ( is_string( $definition ) ) {
+                // Simple format: 'name' => 'string'
+                $configs[ $name ] = [ 'type' => $definition ];
+            } elseif ( is_array( $definition ) && isset( $definition['type'] ) ) {
+                // Complex format: 'name' => ['type' => 'repeater', ...]
+                $configs[ $name ] = $definition;
+            } else {
+                throw new \InvalidArgumentException(
+                    sprintf(
+                        'Invalid field definition for "%s". Must be a type string or array with "type" key.',
+                        $name
+                    )
+                );
+            }
+        }
+
+        return $configs;
+    }
+
+    /**
+     * Normalize field configs to simple name => type mapping.
+     *
+     * Used for backward compatibility with DataSet and schema generation.
+     *
+     * @param array $field_configs Parsed field configurations.
+     * @return array Simple field mapping (name => type string).
+     */
+    protected function normalize_fields( array $field_configs ): array {
+        $normalized = [];
+
+        foreach ( $field_configs as $name => $config ) {
+            $normalized[ $name ] = $config['type'];
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Get full field configuration for a specific field.
+     *
+     * @param string $name Field name.
+     * @return array|null Field configuration or null if not found.
+     */
+    public function get_field_config( string $name ): ?array {
+        return $this->field_configs[ $name ] ?? null;
     }
 
     /**
