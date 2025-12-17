@@ -12,14 +12,15 @@ class LabelGenerator {
      *
      * @param string $singular Singular label (e.g., "View").
      * @param string|null $plural Plural label (auto-generated if null).
+     * @param array $overrides Optional label overrides for i18n support.
      * @return array WordPress labels array.
      */
-    public function generate( string $singular, ?string $plural = null ): array {
+    public function generate( string $singular, ?string $plural = null, array $overrides = [] ): array {
         $plural          = $plural ?? $this->pluralize( $singular );
         $singular_lower  = strtolower( $singular );
         $plural_lower    = strtolower( $plural );
 
-        return [
+        $defaults = [
             'name'                     => $plural,
             'singular_name'            => $singular,
             'add_new'                  => 'Add New',
@@ -46,6 +47,9 @@ class LabelGenerator {
             'item_updated'             => sprintf( '%s updated.', $singular ),
             'menu_name'                => $plural,
         ];
+
+        // Merge overrides, allowing users to provide pre-translated labels.
+        return array_merge( $defaults, $overrides );
     }
 
     /**

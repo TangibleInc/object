@@ -87,7 +87,8 @@ class DataView {
             $this->handler,
             $this->registry,
             $this->url_builder,
-            $this->renderer
+            $this->renderer,
+            $this->label_generator
         );
     }
 
@@ -274,7 +275,11 @@ class DataView {
     public function register(): static {
         // Register the object (CPT or table).
         if ( $this->config->is_plural() && $this->config->storage === 'cpt' ) {
-            $labels = $this->label_generator->generate( $this->config->label );
+            $labels = $this->label_generator->generate(
+                $this->config->get_singular_label(),
+                $this->config->get_plural_label(),
+                $this->config->labels
+            );
             $this->object->register( [
                 'labels'      => $labels,
                 'public'      => false,
