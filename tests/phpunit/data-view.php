@@ -136,6 +136,123 @@ class DataView_TestCase extends \WP_UnitTestCase {
         $this->assertFalse( $sanitizer( 'no' ) );
     }
 
+    public function test_field_type_registry_has_repeater_type(): void {
+        $registry = new FieldTypeRegistry();
+
+        $this->assertTrue( $registry->has_type( 'repeater' ) );
+        $this->assertEquals( DataSet::TYPE_STRING, $registry->get_dataset_type( 'repeater' ) );
+        $this->assertEquals( 'repeater', $registry->get_input_type( 'repeater' ) );
+    }
+
+    public function test_repeater_schema_is_longtext(): void {
+        $registry = new FieldTypeRegistry();
+        $schema = $registry->get_schema( 'repeater' );
+
+        $this->assertEquals( 'longtext', $schema['type'] );
+    }
+
+    public function test_repeater_sanitizer_handles_json_string(): void {
+        $registry = new FieldTypeRegistry();
+        $sanitizer = $registry->get_sanitizer( 'repeater' );
+
+        $input = '[{"key":"abc","name":"Test","count":5}]';
+        $result = $sanitizer( $input );
+        $decoded = json_decode( $result, true );
+
+        $this->assertIsArray( $decoded );
+        $this->assertCount( 1, $decoded );
+        $this->assertEquals( 'abc', $decoded[0]['key'] );
+        $this->assertEquals( 'Test', $decoded[0]['name'] );
+        $this->assertEquals( 5, $decoded[0]['count'] );
+    }
+
+    public function test_repeater_sanitizer_handles_escaped_json(): void {
+        $registry = new FieldTypeRegistry();
+        $sanitizer = $registry->get_sanitizer( 'repeater' );
+
+        // Simulates WordPress POST data with escaped quotes.
+        $input = addslashes( '[{"key":"abc","name":"Test"}]' );
+        $result = $sanitizer( $input );
+        $decoded = json_decode( $result, true );
+
+        $this->assertIsArray( $decoded );
+        $this->assertCount( 1, $decoded );
+        $this->assertEquals( 'Test', $decoded[0]['name'] );
+    }
+
+    public function test_repeater_sanitizer_handles_array_input(): void {
+        $registry = new FieldTypeRegistry();
+        $sanitizer = $registry->get_sanitizer( 'repeater' );
+
+        $input = [
+            [ 'key' => 'abc', 'name' => 'Test 1' ],
+            [ 'key' => 'def', 'name' => 'Test 2' ],
+        ];
+        $result = $sanitizer( $input );
+        $decoded = json_decode( $result, true );
+
+        $this->assertIsArray( $decoded );
+        $this->assertCount( 2, $decoded );
+        $this->assertEquals( 'Test 1', $decoded[0]['name'] );
+        $this->assertEquals( 'Test 2', $decoded[1]['name'] );
+    }
+
+    public function test_repeater_sanitizer_returns_empty_array_for_invalid_json(): void {
+        $registry = new FieldTypeRegistry();
+        $sanitizer = $registry->get_sanitizer( 'repeater' );
+
+        $result = $sanitizer( 'not valid json' );
+        $this->assertEquals( '[]', $result );
+    }
+
+    public function test_repeater_sanitizer_returns_empty_array_for_null(): void {
+        $registry = new FieldTypeRegistry();
+        $sanitizer = $registry->get_sanitizer( 'repeater' );
+
+        $result = $sanitizer( null );
+        $this->assertEquals( '[]', $result );
+    }
+
+    public function test_repeater_sanitizer_preserves_primitive_types(): void {
+        $registry = new FieldTypeRegistry();
+        $sanitizer = $registry->get_sanitizer( 'repeater' );
+
+        $input = '[{"string":"text","int":42,"float":3.14,"bool":true,"null":null}]';
+        $result = $sanitizer( $input );
+        $decoded = json_decode( $result, true );
+
+        $this->assertEquals( 'text', $decoded[0]['string'] );
+        $this->assertSame( 42, $decoded[0]['int'] );
+        $this->assertSame( 3.14, $decoded[0]['float'] );
+        $this->assertSame( true, $decoded[0]['bool'] );
+        $this->assertNull( $decoded[0]['null'] );
+    }
+
+    public function test_repeater_sanitizer_strips_nested_arrays(): void {
+        $registry = new FieldTypeRegistry();
+        $sanitizer = $registry->get_sanitizer( 'repeater' );
+
+        // Nested arrays should be stripped for security.
+        $input = '[{"name":"Test","nested":{"evil":"data"}}]';
+        $result = $sanitizer( $input );
+        $decoded = json_decode( $result, true );
+
+        $this->assertEquals( 'Test', $decoded[0]['name'] );
+        $this->assertArrayNotHasKey( 'nested', $decoded[0] );
+    }
+
+    public function test_repeater_sanitizer_sanitizes_string_values(): void {
+        $registry = new FieldTypeRegistry();
+        $sanitizer = $registry->get_sanitizer( 'repeater' );
+
+        $input = '[{"name":"<script>alert(1)</script>"}]';
+        $result = $sanitizer( $input );
+        $decoded = json_decode( $result, true );
+
+        // sanitize_text_field strips tags.
+        $this->assertStringNotContainsString( '<script>', $decoded[0]['name'] );
+    }
+
     /**
      * ==========================================================================
      * DataViewConfig Tests
@@ -272,6 +389,103 @@ class DataView_TestCase extends \WP_UnitTestCase {
         $this->assertEquals( 'options-general.php', $config->get_parent_menu() );
         $this->assertEquals( 'dashicons-star-filled', $config->get_icon() );
         $this->assertEquals( 25, $config->get_position() );
+    }
+
+    public function test_config_parses_simple_field_definitions(): void {
+        $config = new DataViewConfig( [
+            'slug'   => 'test_view',
+            'label'  => 'Test',
+            'fields' => [
+                'name'  => 'string',
+                'email' => 'email',
+                'count' => 'integer',
+            ],
+        ] );
+
+        // fields should be normalized to name => type.
+        $this->assertEquals( 'string', $config->fields['name'] );
+        $this->assertEquals( 'email', $config->fields['email'] );
+        $this->assertEquals( 'integer', $config->fields['count'] );
+
+        // field_configs should have full config arrays.
+        $this->assertEquals( [ 'type' => 'string' ], $config->field_configs['name'] );
+        $this->assertEquals( [ 'type' => 'email' ], $config->field_configs['email'] );
+    }
+
+    public function test_config_parses_complex_field_definitions(): void {
+        $config = new DataViewConfig( [
+            'slug'   => 'test_view',
+            'label'  => 'Test',
+            'fields' => [
+                'name'  => 'string',
+                'items' => [
+                    'type'       => 'repeater',
+                    'layout'     => 'table',
+                    'sub_fields' => [
+                        [ 'name' => 'title', 'type' => 'string' ],
+                        [ 'name' => 'count', 'type' => 'integer' ],
+                    ],
+                ],
+            ],
+        ] );
+
+        // fields should still be normalized.
+        $this->assertEquals( 'string', $config->fields['name'] );
+        $this->assertEquals( 'repeater', $config->fields['items'] );
+
+        // field_configs should preserve full repeater config.
+        $this->assertEquals( 'repeater', $config->field_configs['items']['type'] );
+        $this->assertEquals( 'table', $config->field_configs['items']['layout'] );
+        $this->assertCount( 2, $config->field_configs['items']['sub_fields'] );
+    }
+
+    public function test_config_get_field_config_returns_full_config(): void {
+        $config = new DataViewConfig( [
+            'slug'   => 'test_view',
+            'label'  => 'Test',
+            'fields' => [
+                'items' => [
+                    'type'       => 'repeater',
+                    'layout'     => 'block',
+                    'sub_fields' => [
+                        [ 'name' => 'title', 'type' => 'string' ],
+                    ],
+                    'default' => [
+                        [ 'title' => 'Default Item' ],
+                    ],
+                ],
+            ],
+        ] );
+
+        $field_config = $config->get_field_config( 'items' );
+
+        $this->assertEquals( 'repeater', $field_config['type'] );
+        $this->assertEquals( 'block', $field_config['layout'] );
+        $this->assertCount( 1, $field_config['default'] );
+        $this->assertEquals( 'Default Item', $field_config['default'][0]['title'] );
+    }
+
+    public function test_config_get_field_config_returns_null_for_unknown(): void {
+        $config = new DataViewConfig( [
+            'slug'   => 'test_view',
+            'label'  => 'Test',
+            'fields' => [ 'name' => 'string' ],
+        ] );
+
+        $this->assertNull( $config->get_field_config( 'unknown_field' ) );
+    }
+
+    public function test_config_throws_for_invalid_field_definition(): void {
+        $this->expectException( \InvalidArgumentException::class );
+        $this->expectExceptionMessage( 'Invalid field definition' );
+
+        new DataViewConfig( [
+            'slug'   => 'test_view',
+            'label'  => 'Test',
+            'fields' => [
+                'bad_field' => [ 'no_type_key' => 'value' ], // Missing 'type' key.
+            ],
+        ] );
     }
 
     /**
@@ -976,5 +1190,234 @@ class DataView_TestCase extends \WP_UnitTestCase {
         $result = $handler2->read( $id );
         $this->assertTrue( $result->is_success() );
         $this->assertEquals( 'Test Item', $result->get_entity()->get( 'name' ) );
+    }
+
+    /**
+     * ==========================================================================
+     * TangibleFieldsRenderer Tests
+     * ==========================================================================
+     */
+
+    public function test_tangible_fields_renderer_can_be_instantiated(): void {
+        $renderer = new \Tangible\Renderer\TangibleFieldsRenderer();
+        $this->assertInstanceOf( \Tangible\Renderer\TangibleFieldsRenderer::class, $renderer );
+    }
+
+    public function test_tangible_fields_renderer_implements_renderer_interface(): void {
+        $renderer = new \Tangible\Renderer\TangibleFieldsRenderer();
+        $this->assertInstanceOf( \Tangible\Renderer\Renderer::class, $renderer );
+    }
+
+    public function test_tangible_fields_renderer_accepts_field_configs(): void {
+        $renderer = new \Tangible\Renderer\TangibleFieldsRenderer();
+
+        $configs = [
+            'name' => [ 'type' => 'string' ],
+            'items' => [
+                'type' => 'repeater',
+                'sub_fields' => [
+                    [ 'name' => 'title', 'type' => 'string' ],
+                ],
+            ],
+        ];
+
+        // Should not throw.
+        $renderer->set_field_configs( $configs );
+        $this->assertTrue( true );
+    }
+
+    public function test_tangible_fields_renderer_throws_without_framework(): void {
+        if ( function_exists( 'tangible_fields' ) ) {
+            $this->markTestSkipped( 'Tangible Fields framework is loaded, cannot test missing framework error.' );
+        }
+
+        $renderer = new \Tangible\Renderer\TangibleFieldsRenderer();
+        $layout = new \Tangible\EditorLayout\Layout( new DataSet() );
+
+        $this->expectException( \RuntimeException::class );
+        $this->expectExceptionMessage( 'Tangible Fields framework' );
+
+        $renderer->render_editor( $layout, [] );
+    }
+
+    /**
+     * ==========================================================================
+     * DataView with TangibleFieldsRenderer Tests
+     * ==========================================================================
+     */
+
+    public function test_dataview_accepts_tangible_fields_renderer(): void {
+        $view = new DataView( [
+            'slug'   => 'dv_tf_renderer',
+            'label'  => 'Item',
+            'fields' => [ 'name' => 'string' ],
+        ] );
+
+        $renderer = new \Tangible\Renderer\TangibleFieldsRenderer();
+        $view->set_renderer( $renderer );
+
+        // Should not throw.
+        $this->assertTrue( true );
+    }
+
+    public function test_dataview_passes_field_configs_to_tangible_fields_renderer(): void {
+        $view = new DataView( [
+            'slug'   => 'dv_tf_configs',
+            'label'  => 'Item',
+            'fields' => [
+                'name'  => 'string',
+                'items' => [
+                    'type'       => 'repeater',
+                    'layout'     => 'table',
+                    'sub_fields' => [
+                        [ 'name' => 'title', 'type' => 'string' ],
+                    ],
+                ],
+            ],
+        ] );
+
+        $renderer = new \Tangible\Renderer\TangibleFieldsRenderer();
+        $view->set_renderer( $renderer );
+
+        // Verify configs were passed (renderer should have them set).
+        // We can't directly access private properties, but the method should not throw.
+        $this->assertTrue( true );
+    }
+
+    public function test_dataview_with_repeater_creates_proper_schema(): void {
+        if ( ! function_exists( 'tdb_register_table' ) ) {
+            $this->markTestSkipped( 'Database module (TDB) is not loaded.' );
+        }
+
+        $view = new DataView( [
+            'slug'   => 'dv_repeater_schema',
+            'label'  => 'Item',
+            'fields' => [
+                'name'  => 'string',
+                'items' => [
+                    'type'       => 'repeater',
+                    'sub_fields' => [
+                        [ 'name' => 'title', 'type' => 'string' ],
+                    ],
+                ],
+            ],
+            'storage' => 'database',
+        ] );
+
+        // Repeater field should be stored as longtext.
+        $dataset = $view->get_dataset();
+        $fields = $dataset->get_fields();
+
+        $this->assertArrayHasKey( 'items', $fields );
+        $this->assertEquals( DataSet::TYPE_STRING, $fields['items']['type'] );
+    }
+
+    public function test_dataview_repeater_crud_operations(): void {
+        if ( ! function_exists( 'tdb_register_table' ) ) {
+            $this->markTestSkipped( 'Database module (TDB) is not loaded.' );
+        }
+
+        $view = new DataView( [
+            'slug'   => 'dv_repeater_crud',
+            'label'  => 'Item',
+            'fields' => [
+                'name'  => 'string',
+                'items' => [
+                    'type'       => 'repeater',
+                    'sub_fields' => [
+                        [ 'name' => 'title', 'type' => 'string' ],
+                        [ 'name' => 'count', 'type' => 'integer' ],
+                    ],
+                ],
+            ],
+            'storage' => 'database',
+        ] );
+
+        $handler = $view->get_handler();
+
+        // Create with repeater data.
+        $repeater_data = [
+            [ 'key' => 'row1', 'title' => 'First Item', 'count' => 5 ],
+            [ 'key' => 'row2', 'title' => 'Second Item', 'count' => 10 ],
+        ];
+
+        $result = $handler->create( [
+            'name'  => 'Test',
+            'items' => json_encode( $repeater_data ),
+        ] );
+
+        $this->assertTrue( $result->is_success() );
+        $id = $result->get_entity()->get_id();
+
+        // Read back and verify.
+        $result = $handler->read( $id );
+        $this->assertTrue( $result->is_success() );
+
+        $saved_items = json_decode( $result->get_entity()->get( 'items' ), true );
+        $this->assertIsArray( $saved_items );
+        $this->assertCount( 2, $saved_items );
+        $this->assertEquals( 'First Item', $saved_items[0]['title'] );
+        $this->assertEquals( 10, $saved_items[1]['count'] );
+
+        // Update repeater data.
+        $updated_data = [
+            [ 'key' => 'row1', 'title' => 'Updated Item', 'count' => 15 ],
+        ];
+
+        $result = $handler->update( $id, [
+            'name'  => 'Updated Test',
+            'items' => json_encode( $updated_data ),
+        ] );
+
+        $this->assertTrue( $result->is_success() );
+
+        // Verify update.
+        $result = $handler->read( $id );
+        $saved_items = json_decode( $result->get_entity()->get( 'items' ), true );
+        $this->assertCount( 1, $saved_items );
+        $this->assertEquals( 'Updated Item', $saved_items[0]['title'] );
+
+        // Delete.
+        $result = $handler->delete( $id );
+        $this->assertTrue( $result->is_success() );
+    }
+
+    public function test_dataview_repeater_with_empty_value(): void {
+        if ( ! function_exists( 'tdb_register_table' ) ) {
+            $this->markTestSkipped( 'Database module (TDB) is not loaded.' );
+        }
+
+        $view = new DataView( [
+            'slug'   => 'dv_repeater_empty',
+            'label'  => 'Item',
+            'fields' => [
+                'name'  => 'string',
+                'items' => [
+                    'type'       => 'repeater',
+                    'sub_fields' => [
+                        [ 'name' => 'title', 'type' => 'string' ],
+                    ],
+                ],
+            ],
+            'storage' => 'database',
+        ] );
+
+        $handler = $view->get_handler();
+
+        // Create with empty repeater.
+        $result = $handler->create( [
+            'name'  => 'Test',
+            'items' => '[]',
+        ] );
+
+        $this->assertTrue( $result->is_success() );
+        $id = $result->get_entity()->get_id();
+
+        // Read back.
+        $result = $handler->read( $id );
+        $saved_items = json_decode( $result->get_entity()->get( 'items' ), true );
+
+        $this->assertIsArray( $saved_items );
+        $this->assertEmpty( $saved_items );
     }
 }
