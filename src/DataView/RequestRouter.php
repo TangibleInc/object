@@ -23,9 +23,13 @@ class RequestRouter {
     protected FieldTypeRegistry $registry;
     protected UrlBuilder $url_builder;
     protected Renderer $renderer;
+    protected LabelGenerator $label_generator;
 
     /** @var callable|null */
     protected $layout_callback = null;
+
+    /** @var array Cached resolved labels. */
+    protected array $resolved_labels = [];
 
     public function __construct(
         DataViewConfig $config,
@@ -33,14 +37,54 @@ class RequestRouter {
         PluralHandler|SingularHandler $handler,
         FieldTypeRegistry $registry,
         UrlBuilder $url_builder,
-        ?Renderer $renderer = null
+        ?Renderer $renderer = null,
+        ?LabelGenerator $label_generator = null
     ) {
-        $this->config      = $config;
-        $this->dataset     = $dataset;
-        $this->handler     = $handler;
-        $this->registry    = $registry;
-        $this->url_builder = $url_builder;
-        $this->renderer    = $renderer ?? new HtmlRenderer();
+        $this->config          = $config;
+        $this->dataset         = $dataset;
+        $this->handler         = $handler;
+        $this->registry        = $registry;
+        $this->url_builder     = $url_builder;
+        $this->renderer        = $renderer ?? new HtmlRenderer();
+        $this->label_generator = $label_generator ?? new LabelGenerator();
+
+        $this->resolve_labels();
+    }
+
+    /**
+     * Resolve and cache all labels, merging user-provided with auto-generated.
+     */
+    protected function resolve_labels(): void {
+        $singular = $this->config->get_singular_label();
+        $plural   = $this->config->get_plural_label()
+            ?? $this->label_generator->pluralize( $singular );
+
+        // Generate default labels.
+        $defaults = [
+            'singular'        => $singular,
+            'plural'          => $plural,
+            'all_items'       => $plural,
+            'add_new_item'    => sprintf( 'Add New %s', $singular ),
+            'edit_item'       => sprintf( 'Edit %s', $singular ),
+            'settings'        => sprintf( '%s Settings', $singular ),
+            'item_created'    => 'Item created successfully.',
+            'item_updated'    => 'Item updated successfully.',
+            'item_deleted'    => 'Item deleted successfully.',
+            'settings_saved'  => 'Settings saved successfully.',
+        ];
+
+        // Merge with user-provided labels.
+        $this->resolved_labels = array_merge( $defaults, $this->config->labels );
+    }
+
+    /**
+     * Get a resolved label.
+     *
+     * @param string $key Label key.
+     * @return string Label value.
+     */
+    protected function get_label( string $key ): string {
+        return $this->resolved_labels[ $key ] ?? $key;
     }
 
     /**
@@ -163,7 +207,7 @@ class RequestRouter {
             $entities[] = $data;
         }
 
-        $this->render_page_header( $this->config->label . 's', $this->url_builder->url( 'create' ) );
+        $this->render_page_header( $this->get_label( 'all_items' ), $this->url_builder->url( 'create' ) );
         $this->render_notices();
 
         if ( empty( $entities ) ) {
@@ -184,7 +228,7 @@ class RequestRouter {
     protected function render_create_form( array $errors = [], array $data = [] ): void {
         $layout = $this->build_layout();
 
-        $this->render_page_header( 'Add New ' . $this->config->label );
+        $this->render_page_header( $this->get_label( 'add_new_item' ) );
 
         if ( ! empty( $errors ) ) {
             $this->render_errors( $errors );
@@ -242,7 +286,7 @@ class RequestRouter {
         $data   = $entity->get_data();
         $layout = $this->build_layout();
 
-        $this->render_page_header( 'Edit ' . $this->config->label );
+        $this->render_page_header( $this->get_label( 'edit_item' ) );
         $this->render_notices();
 
         if ( ! empty( $errors ) ) {
@@ -314,7 +358,7 @@ class RequestRouter {
         $data    = $result->is_success() ? $result->get_data() : [];
         $layout  = $this->build_layout();
 
-        $this->render_page_header( $this->config->label . ' Settings' );
+        $this->render_page_header( $this->get_label( 'settings' ) );
         $this->render_notices();
 
         if ( ! empty( $errors ) ) {
@@ -515,15 +559,18 @@ class RequestRouter {
     protected function render_notices(): void {
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         if ( isset( $_GET['created'] ) ) {
-            echo '<div class="notice notice-success is-dismissible"><p>Item created successfully.</p></div>';
+            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html( $this->get_label( 'item_created' ) ) . '</p></div>';
         }
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         if ( isset( $_GET['updated'] ) ) {
-            echo '<div class="notice notice-success is-dismissible"><p>Item updated successfully.</p></div>';
+            $label = $this->config->is_singular()
+                ? $this->get_label( 'settings_saved' )
+                : $this->get_label( 'item_updated' );
+            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html( $label ) . '</p></div>';
         }
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         if ( isset( $_GET['deleted'] ) ) {
-            echo '<div class="notice notice-success is-dismissible"><p>Item deleted successfully.</p></div>';
+            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html( $this->get_label( 'item_deleted' ) ) . '</p></div>';
         }
     }
 
