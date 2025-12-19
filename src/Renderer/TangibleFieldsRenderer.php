@@ -177,6 +177,7 @@ class TangibleFieldsRenderer implements Renderer {
             $fields[] = [
                 'type'   => 'accordion',
                 'label'  => $item['label'],
+                'title'  => $item['label'],
                 'value'  => true, // Expanded by default.
                 'fields' => $section_fields,
             ];
@@ -224,7 +225,7 @@ class TangibleFieldsRenderer implements Renderer {
             }
 
             $tabs[ $tab_key ] = [
-                'label'  => $tab['label'],
+                'title'  => $tab['label'],
                 'fields' => $tab_fields,
             ];
         }

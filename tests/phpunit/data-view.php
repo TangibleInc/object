@@ -1414,6 +1414,8 @@ class DataView_TestCase extends \WP_UnitTestCase {
         // Should return an accordion config that preserves the section label.
         $this->assertCount( 1, $result );
         $this->assertEquals( 'accordion', $result[0]['type'] );
+        $this->assertArrayHasKey( 'title', $result[0] ); // Required by Fields library.
+        $this->assertEquals( 'Contact Info', $result[0]['title'] );
         $this->assertEquals( 'Contact Info', $result[0]['label'] );
         $this->assertTrue( $result[0]['value'] ); // Expanded by default.
         $this->assertArrayHasKey( 'fields', $result[0] );
