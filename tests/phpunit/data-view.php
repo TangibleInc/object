@@ -1242,6 +1242,90 @@ class DataView_TestCase extends \WP_UnitTestCase {
 
     /**
      * ==========================================================================
+     * TangibleFieldsRenderer Integration Tests (require Tangible Fields framework)
+     * ==========================================================================
+     */
+
+    public function test_tangible_fields_framework_is_available(): void {
+        if ( ! function_exists( 'tangible_fields' ) ) {
+            $this->markTestSkipped( 'Tangible Fields framework is not loaded.' );
+        }
+
+        $fields = tangible_fields();
+        $this->assertNotNull( $fields, 'tangible_fields() should return a Fields instance' );
+        $this->assertIsObject( $fields );
+    }
+
+    public function test_tangible_fields_renderer_renders_list_view(): void {
+        if ( ! function_exists( 'tangible_fields' ) ) {
+            $this->markTestSkipped( 'Tangible Fields framework is not loaded.' );
+        }
+
+        $dataset = new DataSet();
+        $dataset->add_string( 'name' );
+        $dataset->add_integer( 'count' );
+
+        $renderer = new \Tangible\Renderer\TangibleFieldsRenderer();
+        $html = $renderer->render_list( $dataset, [
+            [ 'name' => 'Item 1', 'count' => 5 ],
+            [ 'name' => 'Item 2', 'count' => 10 ],
+            [ 'name' => 'Item 3', 'count' => 15 ],
+        ] );
+
+        $this->assertStringContainsString( 'wp-list-table', $html );
+        $this->assertStringContainsString( 'Item 1', $html );
+        $this->assertStringContainsString( 'Item 2', $html );
+        $this->assertStringContainsString( 'Item 3', $html );
+    }
+
+    public function test_tangible_fields_renderer_list_view_handles_boolean(): void {
+        if ( ! function_exists( 'tangible_fields' ) ) {
+            $this->markTestSkipped( 'Tangible Fields framework is not loaded.' );
+        }
+
+        $dataset = new DataSet();
+        $dataset->add_string( 'name' );
+        $dataset->add_boolean( 'active' );
+
+        $renderer = new \Tangible\Renderer\TangibleFieldsRenderer();
+        $html = $renderer->render_list( $dataset, [
+            [ 'name' => 'Item 1', 'active' => true ],
+            [ 'name' => 'Item 2', 'active' => false ],
+        ] );
+
+        $this->assertStringContainsString( 'Yes', $html );
+        $this->assertStringContainsString( 'No', $html );
+    }
+
+    public function test_tangible_fields_renderer_list_view_handles_repeater(): void {
+        if ( ! function_exists( 'tangible_fields' ) ) {
+            $this->markTestSkipped( 'Tangible Fields framework is not loaded.' );
+        }
+
+        $dataset = new DataSet();
+        $dataset->add_string( 'name' );
+        $dataset->add_string( 'items' );
+
+        $renderer = new \Tangible\Renderer\TangibleFieldsRenderer();
+        $renderer->set_field_configs( [
+            'items' => [
+                'type'       => 'repeater',
+                'sub_fields' => [
+                    [ 'name' => 'title', 'type' => 'string' ],
+                ],
+            ],
+        ] );
+
+        $html = $renderer->render_list( $dataset, [
+            [ 'name' => 'Test', 'items' => json_encode( [ [ 'title' => 'A' ], [ 'title' => 'B' ] ] ) ],
+        ] );
+
+        // Repeater fields should show item count in list view.
+        $this->assertStringContainsString( '2 item(s)', $html );
+    }
+
+    /**
+     * ==========================================================================
      * DataView with TangibleFieldsRenderer Tests
      * ==========================================================================
      */

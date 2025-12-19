@@ -30,6 +30,14 @@ if ( ! $_DATABASE_MODULE_DIR = getenv( 'DATABASE_MODULE_DIR' ) ) {
   $_DATABASE_MODULE_DIR = __DIR__ . '/../../database-module';
 }
 
+/**
+ * Optional: Load the Tangible Fields library for TangibleFieldsRenderer tests.
+ * Set TANGIBLE_FIELDS_DIR environment variable to override the default path.
+ */
+if ( ! $_TANGIBLE_FIELDS_DIR = getenv( 'TANGIBLE_FIELDS_DIR' ) ) {
+  $_TANGIBLE_FIELDS_DIR = __DIR__ . '/../../fields';
+}
+
 // Load WP test functions first (provides tests_add_filter)
 require_once $_WORDPRESS_TESTS_DIR . '/includes/functions.php';
 
@@ -37,6 +45,18 @@ require_once $_WORDPRESS_TESTS_DIR . '/includes/functions.php';
 if ( file_exists( $_DATABASE_MODULE_DIR . '/index.php' ) ) {
   tests_add_filter( 'muplugins_loaded', function() use ( $_DATABASE_MODULE_DIR ) {
     require_once $_DATABASE_MODULE_DIR . '/index.php';
+  });
+}
+
+// Load tangible-fields if available (requires tangible-framework)
+if ( file_exists( $_TANGIBLE_FIELDS_DIR . '/index.php' ) ) {
+  tests_add_filter( 'muplugins_loaded', function() use ( $_TANGIBLE_FIELDS_DIR ) {
+    // Load tangible-framework first (required by tangible-fields)
+    $framework_path = __DIR__ . '/../vendor/tangible/framework/index.php';
+    if ( file_exists( $framework_path ) ) {
+      require_once $framework_path;
+    }
+    require_once $_TANGIBLE_FIELDS_DIR . '/index.php';
   });
 }
 

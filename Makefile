@@ -3,6 +3,7 @@
 # Default WordPress develop location
 WORDPRESS_DEVELOP_DIR ?= $(HOME)/workspace/wordpress-develop
 DATABASE_MODULE_DIR ?= $(shell dirname $(CURDIR))/database-module
+TANGIBLE_FIELDS_DIR ?= $(shell dirname $(CURDIR))/fields
 
 help:
 	@echo "Available targets:"
@@ -22,9 +23,10 @@ test:
 test-all: setup-integrations
 	WORDPRESS_DEVELOP_DIR=$(WORDPRESS_DEVELOP_DIR) \
 	DATABASE_MODULE_DIR=$(DATABASE_MODULE_DIR) \
+	TANGIBLE_FIELDS_DIR=$(TANGIBLE_FIELDS_DIR) \
 	./vendor/bin/phpunit
 
-setup-integrations: setup-database-module
+setup-integrations: setup-database-module setup-tangible-fields
 
 setup-database-module:
 	@if [ ! -d "$(DATABASE_MODULE_DIR)" ]; then \
@@ -32,6 +34,14 @@ setup-database-module:
 		git clone https://github.com/tangibleinc/database-module.git $(DATABASE_MODULE_DIR); \
 	else \
 		echo "database-module already exists at $(DATABASE_MODULE_DIR)"; \
+	fi
+
+setup-tangible-fields:
+	@if [ ! -d "$(TANGIBLE_FIELDS_DIR)" ]; then \
+		echo "Cloning tangible-fields to $(TANGIBLE_FIELDS_DIR)..."; \
+		git clone https://github.com/tangibleinc/fields.git $(TANGIBLE_FIELDS_DIR); \
+	else \
+		echo "tangible-fields already exists at $(TANGIBLE_FIELDS_DIR)"; \
 	fi
 
 setup-wp:
