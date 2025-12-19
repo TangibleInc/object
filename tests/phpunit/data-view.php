@@ -1324,6 +1324,132 @@ class DataView_TestCase extends \WP_UnitTestCase {
         $this->assertStringContainsString( '2 item(s)', $html );
     }
 
+    public function test_layout_sections_within_tabs_structure(): void {
+        $dataset = new DataSet();
+        $dataset->add_string( 'name' );
+        $dataset->add_string( 'email' );
+
+        $layout = new \Tangible\EditorLayout\Layout( $dataset );
+        $layout->tabs( function( $tabs ) {
+            $tabs->tab( 'General', function( $tab ) {
+                $tab->section( 'Contact Information', function( $section ) {
+                    $section->field( 'name' );
+                    $section->field( 'email' );
+                } );
+            } );
+        } );
+
+        $structure = $layout->get_structure();
+
+        // Verify the structure has tabs with nested sections.
+        $this->assertCount( 1, $structure['items'] );
+        $this->assertEquals( 'tabs', $structure['items'][0]['type'] );
+
+        $tab = $structure['items'][0]['tabs'][0];
+        $this->assertEquals( 'General', $tab['label'] );
+        $this->assertArrayHasKey( 'items', $tab );
+        $this->assertCount( 1, $tab['items'] );
+
+        $section = $tab['items'][0];
+        $this->assertEquals( 'section', $section['type'] );
+        $this->assertEquals( 'Contact Information', $section['label'] );
+        $this->assertCount( 2, $section['fields'] );
+    }
+
+    public function test_layout_sidebar_actions_structure(): void {
+        $dataset = new DataSet();
+        $dataset->add_string( 'name' );
+
+        $layout = new \Tangible\EditorLayout\Layout( $dataset );
+        $layout->section( 'Main', function( $section ) {
+            $section->field( 'name' );
+        } );
+        $layout->sidebar( function( $sidebar ) {
+            $sidebar->actions( [ 'save', 'delete' ] );
+        } );
+
+        $structure = $layout->get_structure();
+
+        // Verify the sidebar has actions.
+        $this->assertArrayHasKey( 'sidebar', $structure );
+        $this->assertArrayHasKey( 'actions', $structure['sidebar'] );
+        $this->assertEquals( [ 'save', 'delete' ], $structure['sidebar']['actions'] );
+    }
+
+    public function test_renderer_extract_fields_preserves_section_structure(): void {
+        $dataset = new DataSet();
+        $dataset->add_string( 'name' );
+        $dataset->add_string( 'email' );
+
+        $layout = new \Tangible\EditorLayout\Layout( $dataset );
+        $layout->tabs( function( $tabs ) {
+            $tabs->tab( 'General', function( $tab ) {
+                $tab->section( 'Contact Info', function( $section ) {
+                    $section->field( 'name' );
+                    $section->field( 'email' );
+                } );
+            } );
+        } );
+
+        $renderer = new \Tangible\Renderer\TangibleFieldsRenderer();
+
+        // Set up the renderer's internal state via reflection.
+        $layoutProp = new \ReflectionProperty( $renderer, 'layout' );
+        $layoutProp->setAccessible( true );
+        $layoutProp->setValue( $renderer, $layout );
+
+        $dataProp = new \ReflectionProperty( $renderer, 'data' );
+        $dataProp->setAccessible( true );
+        $dataProp->setValue( $renderer, [ 'name' => '', 'email' => '' ] );
+
+        // Test the protected method.
+        $method = new \ReflectionMethod( $renderer, 'extract_fields_from_item' );
+        $method->setAccessible( true );
+
+        $structure    = $layout->get_structure();
+        $section_item = $structure['items'][0]['tabs'][0]['items'][0];
+
+        $result = $method->invoke( $renderer, $section_item );
+
+        // Should return an accordion config that preserves the section label.
+        $this->assertCount( 1, $result );
+        $this->assertEquals( 'accordion', $result[0]['type'] );
+        $this->assertEquals( 'Contact Info', $result[0]['label'] );
+        $this->assertTrue( $result[0]['value'] ); // Expanded by default.
+        $this->assertArrayHasKey( 'fields', $result[0] );
+        $this->assertCount( 2, $result[0]['fields'] );
+    }
+
+    public function test_renderer_action_buttons_output_html(): void {
+        $renderer = new \Tangible\Renderer\TangibleFieldsRenderer();
+
+        // Test the protected method.
+        $method = new \ReflectionMethod( $renderer, 'render_action' );
+        $method->setAccessible( true );
+
+        // Test save button.
+        $save_html = $method->invoke( $renderer, 'save' );
+        $this->assertStringContainsString( '<button', $save_html );
+        $this->assertStringContainsString( 'type="submit"', $save_html );
+        $this->assertStringContainsString( 'name="action"', $save_html );
+        $this->assertStringContainsString( 'value="save"', $save_html );
+        $this->assertStringContainsString( '>Save</button>', $save_html );
+
+        // Test delete button.
+        $delete_html = $method->invoke( $renderer, 'delete' );
+        $this->assertStringContainsString( '<button', $delete_html );
+        $this->assertStringContainsString( 'type="submit"', $delete_html );
+        $this->assertStringContainsString( 'value="delete"', $delete_html );
+        $this->assertStringContainsString( '>Delete</button>', $delete_html );
+        $this->assertStringContainsString( 'onclick=', $delete_html );
+
+        // Test custom action.
+        $custom_html = $method->invoke( $renderer, 'archive' );
+        $this->assertStringContainsString( '<button', $custom_html );
+        $this->assertStringContainsString( 'value="archive"', $custom_html );
+        $this->assertStringContainsString( '>Archive</button>', $custom_html );
+    }
+
     /**
      * ==========================================================================
      * DataView with TangibleFieldsRenderer Tests

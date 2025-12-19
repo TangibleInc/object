@@ -152,25 +152,42 @@ class TangibleFieldsRenderer implements Renderer {
     }
 
     /**
-     * Extract field configs from a nested item.
+     * Build field configs from a nested item, preserving structure.
+     *
+     * For sections, this creates an accordion config that includes the label.
+     * For tabs, this extracts the fields from each tab.
      *
      * @param array $item The item structure.
-     * @return array Array of field configs.
+     * @return array Array of field configs (may include accordion wrappers).
      */
     protected function extract_fields_from_item( array $item ): array {
         $fields = [];
 
         if ( $item['type'] === 'section' ) {
+            // Build section fields including any nested items.
+            $section_fields = [];
             foreach ( $item['fields'] ?? [] as $field ) {
-                $fields[] = $this->build_field_config( $field );
+                $section_fields[] = $this->build_field_config( $field );
             }
             foreach ( $item['items'] ?? [] as $nested ) {
-                $fields = array_merge( $fields, $this->extract_fields_from_item( $nested ) );
+                $section_fields = array_merge( $section_fields, $this->extract_fields_from_item( $nested ) );
             }
+
+            // Wrap in an accordion to preserve the section label.
+            $fields[] = [
+                'type'   => 'accordion',
+                'label'  => $item['label'],
+                'value'  => true, // Expanded by default.
+                'fields' => $section_fields,
+            ];
         } elseif ( $item['type'] === 'tabs' ) {
             foreach ( $item['tabs'] ?? [] as $tab ) {
                 foreach ( $tab['fields'] ?? [] as $field ) {
                     $fields[] = $this->build_field_config( $field );
+                }
+                // Include nested items from tabs.
+                foreach ( $tab['items'] ?? [] as $nested ) {
+                    $fields = array_merge( $fields, $this->extract_fields_from_item( $nested ) );
                 }
             }
         }
@@ -252,41 +269,53 @@ class TangibleFieldsRenderer implements Renderer {
     /**
      * Render an action button.
      *
+     * Action buttons are rendered as plain HTML for server-side functionality,
+     * ensuring they work regardless of JavaScript state.
+     *
      * @param string $action The action identifier.
      * @return string The rendered HTML.
      */
     protected function render_action( string $action ): string {
-        $fields = tangible_fields();
-
-        $button_config = match ( $action ) {
+        $config = match ( $action ) {
             'save' => [
-                'type'        => 'button',
-                'label'       => 'Save',
-                'button_type' => 'submit',
-                'name'        => 'action',
-                'value'       => 'save',
-                'class'       => 'button button-primary',
+                'label'   => __( 'Save', 'tangible-object' ),
+                'type'    => 'submit',
+                'name'    => 'action',
+                'value'   => 'save',
+                'class'   => 'button button-primary',
+                'onclick' => '',
             ],
             'delete' => [
-                'type'        => 'button',
-                'label'       => 'Delete',
-                'button_type' => 'submit',
-                'name'        => 'action',
-                'value'       => 'delete',
-                'class'       => 'button button-link-delete',
-                'onclick'     => "return confirm('Are you sure you want to delete this item?');",
+                'label'   => __( 'Delete', 'tangible-object' ),
+                'type'    => 'submit',
+                'name'    => 'action',
+                'value'   => 'delete',
+                'class'   => 'button button-link-delete',
+                'onclick' => "return confirm('" . esc_js( __( 'Are you sure you want to delete this item?', 'tangible-object' ) ) . "');",
             ],
             default => [
-                'type'        => 'button',
-                'label'       => ucfirst( $action ),
-                'button_type' => 'button',
-                'name'        => 'action',
-                'value'       => $action,
-                'class'       => 'button',
+                'label'   => ucfirst( $action ),
+                'type'    => 'button',
+                'name'    => 'action',
+                'value'   => $action,
+                'class'   => 'button',
+                'onclick' => '',
             ],
         };
 
-        return $fields->render_element( $action . '_button', $button_config );
+        $onclick_attr = ! empty( $config['onclick'] )
+            ? ' onclick="' . esc_attr( $config['onclick'] ) . '"'
+            : '';
+
+        return sprintf(
+            '<button type="%s" name="%s" value="%s" class="%s"%s>%s</button>',
+            esc_attr( $config['type'] ),
+            esc_attr( $config['name'] ),
+            esc_attr( $config['value'] ),
+            esc_attr( $config['class'] ),
+            $onclick_attr,
+            esc_html( $config['label'] )
+        );
     }
 
     /**
