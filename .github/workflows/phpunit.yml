@@ -68,6 +68,12 @@ jobs:
           repository: TangibleInc/database-module
           path: database-module
 
+      - name: Checkout fields
+        uses: actions/checkout@v6
+        with:
+          repository: TangibleInc/fields
+          path: fields
+
       - name: Setup WordPress test config
         run: |
           cp wordpress-develop/wp-tests-config-sample.php wordpress-develop/wp-tests-config.php
@@ -80,4 +86,5 @@ jobs:
         env:
           WORDPRESS_DEVELOP_DIR: ${{ github.workspace }}/wordpress-develop
           DATABASE_MODULE_DIR: ${{ github.workspace }}/database-module
+          TANGIBLE_FIELDS_DIR: ${{ github.workspace }}/fields
         run: ./vendor/bin/phpunit
