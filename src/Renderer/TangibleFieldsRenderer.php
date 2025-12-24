@@ -145,7 +145,8 @@ class TangibleFieldsRenderer implements Renderer {
         return $fields->render_field( $section_id, [
             'type'   => 'accordion',
             'label'  => $section['label'],
-            'value'  => true, // Expanded by default.
+            'value'  => true,
+            'isOpen' => true, // Expanded by default.
             'fields' => $section_fields,
             ...$this->get_memory_store_callbacks(),
         ] );
