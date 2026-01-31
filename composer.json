@@ -12,11 +12,16 @@
     "yoast/phpunit-polyfills": "^2.0.5",
     "tangible/framework": "dev-main"
   },
-  "require": {},
+  "require": {
+    "symfony/yaml": "^7.0"
+  },
   "autoload": {
     "psr-4": {
       "Tangible\\": "./src"
-    }
+    },
+    "files": [
+      "src/Settings/index.php"
+    ]
   },
   "autoload-dev": {
     "psr-4": {

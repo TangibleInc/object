@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Tangible Object
- * Description: 
- * Version: 0.0.1
+ * Description: A WordPress tool suite for building data-driven interfaces with a clean extensible architecture.
+ * Version: 0.0.2
  * GitHub URI: TangibleInc/object
  */
 
