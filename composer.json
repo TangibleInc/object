@@ -8,7 +8,7 @@
     }
   ],
   "require-dev": {
-    "phpunit/phpunit": "^9.6.32",
+    "phpunit/phpunit": "^9.6.34",
     "yoast/phpunit-polyfills": "^2.0.5",
     "tangible/framework": "dev-main"
   },
