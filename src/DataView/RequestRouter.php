@@ -399,16 +399,27 @@ class RequestRouter {
     /**
      * Extract and sanitize POST data based on field types.
      *
+     * In singular mode, the SettingsRenderer nests field names under the
+     * settings key (e.g., `settings_slug[field_name]`), so POST data arrives
+     * as `$_POST['settings_slug']['field_name']`. We check the nested array
+     * first, then fall back to flat `$_POST['field_name']` for compatibility.
+     *
      * @return array Sanitized data.
      */
     protected function extract_post_data(): array {
         $data = [];
 
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing
+        $nested = $_POST[ $this->config->slug ] ?? [];
+
         foreach ( $this->config->field_configs as $name => $config ) {
             $type = $config['type'];
 
+            // Check nested array first (singular/settings mode), then flat POST
             // phpcs:ignore WordPress.Security.NonceVerification.Missing
-            if ( ! isset( $_POST[ $name ] ) ) {
+            $has_value = isset( $nested[ $name ] ) || isset( $_POST[ $name ] );
+
+            if ( ! $has_value ) {
                 // Handle missing boolean fields (unchecked checkboxes).
                 if ( $this->registry->get_dataset_type( $type ) === DataSet::TYPE_BOOLEAN ) {
                     $data[ $name ] = false;
@@ -422,7 +433,8 @@ class RequestRouter {
 
             $sanitizer = $this->registry->get_sanitizer( $type );
             // phpcs:ignore WordPress.Security.NonceVerification.Missing
-            $data[ $name ] = $sanitizer( $_POST[ $name ] );
+            $raw_value = $nested[ $name ] ?? $_POST[ $name ];
+            $data[ $name ] = $sanitizer( $raw_value );
         }
 
         return $data;
