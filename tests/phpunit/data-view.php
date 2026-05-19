@@ -54,6 +54,43 @@ class DataView_TestCase extends \WP_UnitTestCase {
         $this->assertTrue( $registry->has_type( 'datetime' ) );
     }
 
+    public function test_field_type_registry_has_shared_custom_types(): void {
+        $registry_1 = new FieldTypeRegistry();
+        $registry_2 = new FieldTypeRegistry();
+
+        $registry_1->register_type( 'custom_type_1', [
+            'dataset'   => DataSet::TYPE_STRING,
+            'sanitizer' => fn( $value ) => ( $value ),
+            'schema'    => [],
+            'input'     => 'hidden',
+        ] );
+
+        $registry_2->register_type( 'custom_type_2', [
+            'dataset'   => DataSet::TYPE_INTEGER,
+            'sanitizer' => fn( $value ) => ( $value ),
+            'schema'    => [],
+            'input'     => 'hidden',
+        ] );
+
+        foreach( [
+            $registry_1,
+            $registry_2
+        ] as $registry ) {
+            $this->assertTrue( $registry->has_type( 'custom_type_1' ) );
+            $this->assertTrue( $registry->has_type( 'custom_type_2' ) );
+
+            // Check defaults are not erased by custom
+            $this->assertTrue( $registry->has_type( 'string' ) );
+            $this->assertTrue( $registry->has_type( 'text' ) );
+            $this->assertTrue( $registry->has_type( 'email' ) );
+            $this->assertTrue( $registry->has_type( 'url' ) );
+            $this->assertTrue( $registry->has_type( 'integer' ) );
+            $this->assertTrue( $registry->has_type( 'boolean' ) );
+            $this->assertTrue( $registry->has_type( 'date' ) );
+            $this->assertTrue( $registry->has_type( 'datetime' ) );
+        }
+    }
+
     public function test_field_type_registry_maps_to_dataset_types(): void {
         $registry = new FieldTypeRegistry();
 
