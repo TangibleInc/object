@@ -295,6 +295,8 @@ class DataView {
             ] );
         }
 
+        add_action( 'admin_init', [ $this->router, 'maybe_redirect' ] );
+
         // Register admin menu.
         $this->register_admin_menu();
 
