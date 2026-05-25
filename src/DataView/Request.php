@@ -2,14 +2,41 @@
 
 namespace Tangible\DataView;
 
+use WP_REST_Request;
+
 /**
- * Represents the current HTTP request.
- *
- * For shared parameters (action, id), POST is checked first and GET is used
- * as a fallback. This lets forms carry the routing parameters in hidden
- * inputs rather than relying on the URL.
+ * Wraps a WP_REST_Request instance, gives access to parameters
+ * according to method and defines default values
  */
 class Request {
+
+    /**
+     * @see https://developer.wordpress.org/reference/classes/wp_rest_request/
+     */
+    protected WP_REST_Request $rest_request;
+
+    protected array $default_params = [
+        'id'        => null,
+        'action'    => 'list',
+        '_wpnonce'  => '',
+    ];
+
+    public function __construct() {
+        /**
+         * Simple implementation based on how WP_REST_Server::serve_request()
+         * instantiates WP_REST_Request
+         *
+         * @see https://developer.wordpress.org/reference/classes/wp_rest_server/serve_request/
+         */
+        $this->rest_request = new WP_REST_Request(
+            $_SERVER['REQUEST_METHOD'],
+            $_SERVER['PATH_INFO'] ?? '/'
+        );
+
+        $this->rest_request->set_default_params( $this->default_params );
+        $this->rest_request->set_query_params( wp_unslash( $_GET ) );
+        $this->rest_request->set_body_params( wp_unslash( $_POST ) );
+    }
 
     /**
      * Get the current action from the request.
@@ -17,8 +44,7 @@ class Request {
      * @return string Current action (defaults to 'list').
      */
     public function get_current_action(): string {
-        $action = $this->get_param( 'action' );
-        return $action !== null ? sanitize_key( $action ) : 'list';
+        return sanitize_key( (string) $this->rest_request->get_param( 'action' ) );
     }
 
     /**
@@ -27,7 +53,7 @@ class Request {
      * @return int|null Entity ID or null if not present.
      */
     public function get_current_id(): ?int {
-        $id = $this->get_param( 'id' );
+        $id = $this->rest_request->get_param( 'id' );
         return $id !== null ? (int) $id : null;
     }
 
@@ -35,29 +61,13 @@ class Request {
      * Get the WordPress nonce from the current request.
      */
     public function get_nonce(): string {
-        // phpcs:ignore WordPress.Security.NonceVerification.Missing
-        return (string) ( $_POST['_wpnonce'] ?? $_GET['_wpnonce'] ?? '' );
+        return (string) $this->rest_request->get_param( '_wpnonce' );
     }
 
     /**
      * Whether the current request is a POST request.
      */
     public function is_post(): bool {
-        return isset( $_SERVER['REQUEST_METHOD'] ) && $_SERVER['REQUEST_METHOD'] === 'POST';
-    }
-
-    /**
-     * Read a parameter, checking POST first, then GET.
-     */
-    protected function get_param( string $name ): ?string {
-        // phpcs:ignore WordPress.Security.NonceVerification.Missing
-        if ( isset( $_POST[ $name ] ) ) {
-            return (string) $_POST[ $name ];
-        }
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        if ( isset( $_GET[ $name ] ) ) {
-            return (string) $_GET[ $name ];
-        }
-        return null;
+        return $this->rest_request->is_method( 'POST' );
     }
 }
