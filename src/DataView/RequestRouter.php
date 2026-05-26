@@ -109,13 +109,19 @@ class RequestRouter {
     }
 
     /**
-     * Route the current request to the appropriate handler.
+     * Check capability.
      */
-    public function route(): void {
-        // Check capability.
+    protected function check_capability() {
         if ( ! current_user_can( $this->config->capability ) ) {
             wp_die( __( 'You do not have permission to access this page.' ) );
         }
+    }
+
+    /**
+     * Route the current request to the appropriate handler.
+     */
+    public function route(): void {
+        $this->check_capability();
 
         $action = $this->request->get_current_action();
         $id     = $this->request->get_current_id();
@@ -131,33 +137,51 @@ class RequestRouter {
     }
 
     /**
+     * POST requests will trigger a redirect so they have to be processed
+     * earlier than GET request, before any content is displayed
+     *
+     * @param string $action Current action.
+     * @param int|null $id Entity ID.
+     */
+    public function maybe_redirect(): void {
+        $this->check_capability();
+
+        if ( ! $this->request->is_post() ) return;
+
+        if ( $this->config->is_singular() ) {
+            $this->handle_settings_submit();
+            return;
+        }
+
+        $action = $this->request->get_current_action();
+        $id     = $this->request->get_current_id();
+
+        switch ( $action ) {
+            case 'create':
+                $this->handle_create_submit();
+                return;
+            case 'edit':
+                if ( $id !== null ) {
+                    $this->handle_edit_submit( $id );
+                    return;
+                }
+                break;
+            case 'delete':
+                if ( $id !== null ) {
+                    $this->handle_delete( $id );
+                    return;
+                }
+                break;
+        }
+    }
+
+    /**
      * Route plural (multi-entity) requests.
      *
      * @param string $action Current action.
      * @param int|null $id Entity ID.
      */
     protected function route_plural( string $action, ?int $id ): void {
-        // Handle POST submissions.
-        if ( $this->request->is_post() ) {
-            switch ( $action ) {
-                case 'create':
-                    $this->handle_create_submit();
-                    return;
-                case 'edit':
-                    if ( $id !== null ) {
-                        $this->handle_edit_submit( $id );
-                        return;
-                    }
-                    break;
-                case 'delete':
-                    if ( $id !== null ) {
-                        $this->handle_delete( $id );
-                        return;
-                    }
-                    break;
-            }
-        }
-
         // Handle GET requests.
         switch ( $action ) {
             case 'create':
@@ -187,11 +211,6 @@ class RequestRouter {
      * Route singular (single-entity) requests.
      */
     protected function route_singular(): void {
-        if ( $this->request->is_post() ) {
-            $this->handle_settings_submit();
-            return;
-        }
-
         $this->render_settings_form();
     }
 
