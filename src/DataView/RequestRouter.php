@@ -146,15 +146,15 @@ class RequestRouter {
     public function maybe_redirect(): void {
         $this->check_capability();
 
-        if ( ! $this->is_post_request() ) return;
+        if ( ! $this->request->is_post() ) return;
 
         if ( $this->config->is_singular() ) {
             $this->handle_settings_submit();
             return;
         }
 
-        $action = $this->url_builder->get_current_action();
-        $id     = $this->url_builder->get_current_id();
+        $action = $this->request->get_current_action();
+        $id     = $this->request->get_current_id();
 
         switch ( $action ) {
             case 'create':
