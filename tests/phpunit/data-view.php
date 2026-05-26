@@ -54,7 +54,7 @@ class DataView_TestCase extends \WP_UnitTestCase {
         $this->assertTrue( $registry->has_type( 'datetime' ) );
     }
 
-    public function test_field_type_registry_has_shared_custom_types(): void {
+    public function test_field_type_registry_has_custom_types(): void {
         $registry_1 = new FieldTypeRegistry();
         $registry_2 = new FieldTypeRegistry();
 
@@ -72,13 +72,16 @@ class DataView_TestCase extends \WP_UnitTestCase {
             'input'     => 'hidden',
         ] );
 
+        $this->assertTrue( $registry_1->has_type( 'custom_type_1' ) );
+        $this->assertTrue( $registry_2->has_type( 'custom_type_2' ) );
+
+        $this->assertFalse( $registry_1->has_type( 'custom_type_2' ) );
+        $this->assertFalse( $registry_2->has_type( 'custom_type_1' ) );
+
         foreach( [
             $registry_1,
             $registry_2
         ] as $registry ) {
-            $this->assertTrue( $registry->has_type( 'custom_type_1' ) );
-            $this->assertTrue( $registry->has_type( 'custom_type_2' ) );
-
             // Check defaults are not erased by custom
             $this->assertTrue( $registry->has_type( 'string' ) );
             $this->assertTrue( $registry->has_type( 'text' ) );
@@ -89,6 +92,38 @@ class DataView_TestCase extends \WP_UnitTestCase {
             $this->assertTrue( $registry->has_type( 'date' ) );
             $this->assertTrue( $registry->has_type( 'datetime' ) );
         }
+    }
+
+    public function test_dataview_can_use_field_registery_with_custom_types(): void {
+        $registry = new FieldTypeRegistry();
+        $registry->register_type( 'custom_type', [
+            'dataset'   => DataSet::TYPE_STRING,
+            'sanitizer' => fn( $value ) => ( $value ),
+            'schema'    => [],
+            'input'     => 'hidden',
+        ] );
+
+        $config = [
+            'slug'   => 'dv_test_custom_field_type',
+            'label'  => 'Item',
+            'fields' => [
+                'name'   => 'custom_type',
+                'title'  => 'string',
+            ]
+        ];
+
+        try {
+            $view_default_registry = new DataView( $config );
+            $this->fail( 'Expected InvalidArgumentException was not thrown' );
+        } catch ( \InvalidArgumentException $e ) {
+            $this->assertStringStartsWith(
+                'Unknown field type "custom_type"',
+                $e->getMessage()
+            );
+        }
+
+        $view_custom_registry = new DataView( $config, $registry );
+        $this->assertInstanceOf( DataView::class, $view_custom_registry );
     }
 
     public function test_field_type_registry_maps_to_dataset_types(): void {
