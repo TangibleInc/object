@@ -24,6 +24,7 @@ class RequestRouter {
     protected UrlBuilder $url_builder;
     protected Renderer $renderer;
     protected LabelGenerator $label_generator;
+    protected Request $request;
 
     /** @var callable|null */
     protected $layout_callback = null;
@@ -38,7 +39,8 @@ class RequestRouter {
         FieldTypeRegistry $registry,
         UrlBuilder $url_builder,
         ?Renderer $renderer = null,
-        ?LabelGenerator $label_generator = null
+        ?LabelGenerator $label_generator = null,
+        ?Request $request = null
     ) {
         $this->config          = $config;
         $this->dataset         = $dataset;
@@ -47,6 +49,7 @@ class RequestRouter {
         $this->url_builder     = $url_builder;
         $this->renderer        = $renderer ?? new HtmlRenderer();
         $this->label_generator = $label_generator ?? new LabelGenerator();
+        $this->request         = $request ?? new Request();
 
         $this->resolve_labels();
     }
@@ -120,8 +123,8 @@ class RequestRouter {
     public function route(): void {
         $this->check_capability();
 
-        $action = $this->url_builder->get_current_action();
-        $id     = $this->url_builder->get_current_id();
+        $action = $this->request->get_current_action();
+        $id     = $this->request->get_current_id();
 
         // Handle singular mode differently.
         if ( $this->config->is_singular() ) {
@@ -527,15 +530,6 @@ class RequestRouter {
     }
 
     /**
-     * Check if this is a POST request.
-     *
-     * @return bool True if POST request.
-     */
-    protected function is_post_request(): bool {
-        return isset( $_SERVER['REQUEST_METHOD'] ) && $_SERVER['REQUEST_METHOD'] === 'POST';
-    }
-
-    /**
      * Verify nonce for an action.
      *
      * @param string $action Action name.
@@ -544,8 +538,7 @@ class RequestRouter {
      */
     protected function verify_nonce( string $action, ?int $id = null ): bool {
         $nonce_action = $this->url_builder->get_nonce_action( $action, $id );
-        // phpcs:ignore WordPress.Security.NonceVerification.Missing
-        $nonce = $_POST['_wpnonce'] ?? $_GET['_wpnonce'] ?? '';
+        $nonce = $this->request->get_nonce();
         return wp_verify_nonce( $nonce, $nonce_action ) !== false;
     }
 
