@@ -14,17 +14,17 @@ class FieldTypeRegistry {
      *
      * @var array<string, array{dataset: string, sanitizer: callable|string, schema: array, input: string}>
      */
-    protected static array $types = [];
+    protected array $types = [];
 
     public function __construct() {
-        if ( empty( static::$types ) ) $this->register_default_types();
+        if ( empty( $this->types ) ) $this->register_default_types();
     }
 
     /**
      * Register the default field types.
      */
     protected function register_default_types(): void {
-        static::$types = [
+        $this->types = [
             'string' => [
                 'dataset'   => DataSet::TYPE_STRING,
                 'sanitizer' => 'sanitize_text_field',
@@ -91,7 +91,7 @@ class FieldTypeRegistry {
      */
     public function get_dataset_type( string $type ): string {
         $this->validate_type( $type );
-        return static::$types[ $type ]['dataset'];
+        return $this->types[ $type ]['dataset'];
     }
 
     /**
@@ -103,7 +103,7 @@ class FieldTypeRegistry {
      */
     public function get_sanitizer( string $type ): callable {
         $this->validate_type( $type );
-        return static::$types[ $type ]['sanitizer'];
+        return $this->types[ $type ]['sanitizer'];
     }
 
     /**
@@ -115,7 +115,7 @@ class FieldTypeRegistry {
      */
     public function get_schema( string $type ): array {
         $this->validate_type( $type );
-        return static::$types[ $type ]['schema'];
+        return $this->types[ $type ]['schema'];
     }
 
     /**
@@ -127,7 +127,7 @@ class FieldTypeRegistry {
      */
     public function get_input_type( string $type ): string {
         $this->validate_type( $type );
-        return static::$types[ $type ]['input'];
+        return $this->types[ $type ]['input'];
     }
 
     /**
@@ -137,7 +137,7 @@ class FieldTypeRegistry {
      * @return bool True if type is registered.
      */
     public function has_type( string $type ): bool {
-        return isset( static::$types[ $type ] );
+        return isset( $this->types[ $type ] );
     }
 
     /**
@@ -155,7 +155,7 @@ class FieldTypeRegistry {
                 );
             }
         }
-        static::$types[ $name ] = $config;
+        $this->types[ $name ] = $config;
     }
 
     /**
@@ -167,7 +167,7 @@ class FieldTypeRegistry {
     protected function validate_type( string $type ): void {
         if ( ! $this->has_type( $type ) ) {
             throw new \InvalidArgumentException(
-                sprintf( 'Unknown field type "%s". Available types: %s', $type, implode( ', ', array_keys( static::$types ) ) )
+                sprintf( 'Unknown field type "%s". Available types: %s', $type, implode( ', ', array_keys( $this->types ) ) )
             );
         }
     }

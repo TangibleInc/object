@@ -70,8 +70,8 @@ class DataView {
      *   - ui: array - WordPress admin UI configuration
      *   - capability: string - required capability (default: 'manage_options')
      */
-    public function __construct( array $config ) {
-        $this->registry         = new FieldTypeRegistry();
+    public function __construct( array $config, ?FieldTypeRegistry $registry = null ) {
+        $this->registry         = $registry ?? new FieldTypeRegistry();
         $this->label_generator  = new LabelGenerator();
         $this->schema_generator = new SchemaGenerator( $this->registry );
 
