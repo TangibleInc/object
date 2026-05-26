@@ -51,30 +51,6 @@ class UrlBuilder {
     }
 
     /**
-     * Get the current action from the request.
-     *
-     * @return string Current action (defaults to 'list').
-     */
-    public function get_current_action(): string {
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        return isset( $_GET['action'] ) ? sanitize_key( $_GET['action'] ) : 'list';
-    }
-
-    /**
-     * Get the entity ID from the current request.
-     *
-     * @return int|null Entity ID or null if not present.
-     */
-    public function get_current_id(): ?int {
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        if ( ! isset( $_GET['id'] ) ) {
-            return null;
-        }
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        return (int) $_GET['id'];
-    }
-
-    /**
      * Get the menu page slug.
      *
      * @return string Menu page slug.
