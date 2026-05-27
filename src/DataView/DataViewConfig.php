@@ -298,6 +298,16 @@ class DataViewConfig {
     }
 
     /**
+     * Generate the nonce request field name for a given action.
+     *
+     * @param string $action Action name.
+     * @return string Nonce field name.
+     */
+    public function get_nonce_name( string $action ): string {
+        return '_wpnonce_' . $action;
+    }
+
+    /**
      * Get the admin menu label.
      *
      * @return string Menu label.

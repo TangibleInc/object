@@ -257,7 +257,7 @@ class RequestRouter {
         }
 
         echo '<form method="post" action="' . esc_url( $this->url_builder->url( 'create' ) ) . '">';
-        wp_nonce_field( $this->config->get_nonce_action( 'create' ) );
+        $this->nonce_field( 'create' );
         echo $this->renderer->render_editor( $layout, $data );
         echo '</form>';
 
@@ -316,8 +316,8 @@ class RequestRouter {
         }
 
         echo '<form method="post" action="' . esc_url( $this->url_builder->url( 'edit', $id ) ) . '">';
-        wp_nonce_field( $this->config->get_nonce_action( 'edit', $id ) );
-        wp_nonce_field( $this->config->get_nonce_action( 'delete', $id ), '_wpnonce_delete' );
+        $this->nonce_field( 'edit', $id );
+        $this->nonce_field( 'delete', $id );
         echo '<input type="hidden" name="id" value="' . esc_attr( (string) $id ) . '">';
 
         echo $this->renderer->render_editor( $layout, $data );
@@ -358,7 +358,7 @@ class RequestRouter {
      * @param int $id Entity ID.
      */
     protected function handle_delete( int $id ): void {
-        if ( ! $this->verify_nonce( 'delete', $id, '_wpnonce_delete' ) ) {
+        if ( ! $this->verify_nonce( 'delete', $id ) ) {
             wp_die( 'Security check failed.' );
         }
 
@@ -390,7 +390,7 @@ class RequestRouter {
         }
 
         echo '<form method="post">';
-        wp_nonce_field( $this->config->get_nonce_action( 'update' ) );
+        $this->nonce_field( 'update' );
         echo $this->renderer->render_editor( $layout, $data );
         echo '</form>';
 
@@ -534,19 +534,28 @@ class RequestRouter {
     }
 
     /**
+     * Output a nonce field for an action.
+     *
+     * @param string $action Action name.
+     * @param int|null $id Entity ID.
+     */
+    protected function nonce_field( string $action, ?int $id = null ): void {
+        wp_nonce_field(
+            $this->config->get_nonce_action( $action, $id ),
+            $this->config->get_nonce_name( $action )
+        );
+    }
+
+    /**
      * Verify nonce for an action.
      *
      * @param string $action Action name.
      * @param int|null $id Entity ID.
      * @return bool True if nonce is valid.
      */
-    protected function verify_nonce(
-        string $action,
-        ?int $id = null,
-        ?string $name = '_wpnonce'
-    ): bool {
+    protected function verify_nonce( string $action, ?int $id = null ): bool {
         $nonce_action = $this->config->get_nonce_action( $action, $id );
-        $nonce = $this->request->get_nonce( $name );
+        $nonce = $this->request->get_nonce( $this->config->get_nonce_name( $action ) );
         return wp_verify_nonce( $nonce, $nonce_action ) !== false;
     }
 

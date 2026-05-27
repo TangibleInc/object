@@ -47,6 +47,6 @@ class UrlBuilder {
      */
     public function url_with_nonce( string $action, ?int $id, string $nonce_action ): string {
         $url = $this->url( $action, $id );
-        return wp_nonce_url( $url, $nonce_action );
+        return wp_nonce_url( $url, $nonce_action, '_wpnonce_' . $action );
     }
 }
