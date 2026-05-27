@@ -17,7 +17,7 @@ class FieldTypeRegistry {
     protected array $types = [];
 
     public function __construct() {
-        if ( empty( $this->types ) ) $this->register_default_types();
+        $this->register_default_types();
     }
 
     /**
