@@ -60,8 +60,8 @@ class Request {
     /**
      * Get the WordPress nonce from the current request.
      */
-    public function get_nonce(): string {
-        return (string) $this->rest_request->get_param( '_wpnonce' );
+    public function get_nonce( ?string $name = '_wpnonce' ): string {
+        return (string) $this->rest_request->get_param( $name );
     }
 
     /**

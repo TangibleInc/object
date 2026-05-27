@@ -1587,7 +1587,7 @@ class DataView_TestCase extends \WP_UnitTestCase {
         $this->assertStringContainsString( '<button', $save_html );
         $this->assertStringContainsString( 'type="submit"', $save_html );
         $this->assertStringContainsString( 'name="action"', $save_html );
-        $this->assertStringContainsString( 'value="save"', $save_html );
+        $this->assertStringContainsString( 'value="edit"', $save_html );
         $this->assertStringContainsString( '>Save</button>', $save_html );
 
         // Test delete button.

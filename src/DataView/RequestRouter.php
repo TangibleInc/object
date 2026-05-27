@@ -316,8 +316,15 @@ class RequestRouter {
         }
 
         echo '<form method="post" action="' . esc_url( $this->url_builder->url( 'edit', $id ) ) . '">';
-        wp_nonce_field( $this->config->get_nonce_action( 'edit', $id ) );
-        echo '<input type="hidden" name="id" value="' . esc_attr( (string) $id ) . '">';
+        if ( $this->request->get_current_action() === 'create' ) {
+            wp_nonce_field( $this->config->get_nonce_action( 'create' ) );
+        }
+        else {
+            wp_nonce_field( $this->config->get_nonce_action( 'edit', $id ) );
+            wp_nonce_field( $this->config->get_nonce_action( 'delete', $id ), '_wpnonce_delete' );
+            echo '<input type="hidden" name="id" value="' . esc_attr( (string) $id ) . '">';
+        }
+
         echo $this->renderer->render_editor( $layout, $data );
         echo '</form>';
 
@@ -356,7 +363,7 @@ class RequestRouter {
      * @param int $id Entity ID.
      */
     protected function handle_delete( int $id ): void {
-        if ( ! $this->verify_nonce( 'delete', $id ) ) {
+        if ( ! $this->verify_nonce( 'delete', $id, '_wpnonce_delete' ) ) {
             wp_die( 'Security check failed.' );
         }
 
@@ -538,9 +545,15 @@ class RequestRouter {
      * @param int|null $id Entity ID.
      * @return bool True if nonce is valid.
      */
-    protected function verify_nonce( string $action, ?int $id = null ): bool {
+    protected function verify_nonce(
+        string $action,
+        ?int $id = null,
+        ?string $name = '_wpnonce'
+    ): bool {
         $nonce_action = $this->config->get_nonce_action( $action, $id );
-        $nonce = $this->request->get_nonce();
+        $nonce = $this->request->get_nonce( $name );
+        var_dump( $nonce );
+        var_dump( $nonce_action );
         return wp_verify_nonce( $nonce, $nonce_action ) !== false;
     }
 

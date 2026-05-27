@@ -291,7 +291,7 @@ class TangibleFieldsRenderer implements Renderer {
                 'label'   => __( 'Save', 'tangible-object' ),
                 'type'    => 'submit',
                 'name'    => 'action',
-                'value'   => 'save',
+                'value'   => 'edit',
                 'class'   => 'button button-primary',
                 'onclick' => '',
             ],
