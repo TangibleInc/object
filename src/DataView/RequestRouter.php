@@ -316,14 +316,9 @@ class RequestRouter {
         }
 
         echo '<form method="post" action="' . esc_url( $this->url_builder->url( 'edit', $id ) ) . '">';
-        if ( $this->request->get_current_action() === 'create' ) {
-            wp_nonce_field( $this->config->get_nonce_action( 'create' ) );
-        }
-        else {
-            wp_nonce_field( $this->config->get_nonce_action( 'edit', $id ) );
-            wp_nonce_field( $this->config->get_nonce_action( 'delete', $id ), '_wpnonce_delete' );
-            echo '<input type="hidden" name="id" value="' . esc_attr( (string) $id ) . '">';
-        }
+        wp_nonce_field( $this->config->get_nonce_action( 'edit', $id ) );
+        wp_nonce_field( $this->config->get_nonce_action( 'delete', $id ), '_wpnonce_delete' );
+        echo '<input type="hidden" name="id" value="' . esc_attr( (string) $id ) . '">';
 
         echo $this->renderer->render_editor( $layout, $data );
         echo '</form>';
@@ -552,8 +547,6 @@ class RequestRouter {
     ): bool {
         $nonce_action = $this->config->get_nonce_action( $action, $id );
         $nonce = $this->request->get_nonce( $name );
-        var_dump( $nonce );
-        var_dump( $nonce_action );
         return wp_verify_nonce( $nonce, $nonce_action ) !== false;
     }
 
