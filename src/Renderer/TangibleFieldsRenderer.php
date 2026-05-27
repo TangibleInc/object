@@ -279,6 +279,14 @@ class TangibleFieldsRenderer implements Renderer {
      */
     protected function render_action( string $action ): string {
         $config = match ( $action ) {
+            'create' => [
+                'label'   => __( 'Create', 'tangible-object' ),
+                'type'    => 'submit',
+                'name'    => 'action',
+                'value'   => 'create',
+                'class'   => 'button button-primary',
+                'onclick' => '',
+            ],
             'save' => [
                 'label'   => __( 'Save', 'tangible-object' ),
                 'type'    => 'submit',

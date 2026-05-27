@@ -480,7 +480,9 @@ class RequestRouter {
         } );
 
         $layout->sidebar( function ( Sidebar $sidebar ) {
-            $sidebar->actions( [ 'save', 'delete' ] );
+            $this->request->get_current_action() === 'create'
+                ? $sidebar->actions( [ 'create' ] )
+                : $sidebar->actions( [ 'save', 'delete' ] );
         } );
     }
 

@@ -10,6 +10,9 @@ use Tangible\DataObject\Storage\OptionStorage;
 use Tangible\DataView\DataView;
 use Tangible\DataView\DataViewConfig;
 use Tangible\DataView\FieldTypeRegistry;
+use Tangible\DataView\Request;
+use Tangible\DataView\RequestRouter;
+use Tangible\EditorLayout\Layout;
 use Tangible\DataView\LabelGenerator;
 use Tangible\DataView\SchemaGenerator;
 use Tangible\DataView\UrlBuilder;
@@ -1266,6 +1269,80 @@ class DataView_TestCase extends \WP_UnitTestCase {
         $this->assertEquals( 'test_view_create', $config->get_nonce_action( 'create' ) );
         $this->assertEquals( 'test_view_edit_42', $config->get_nonce_action( 'edit', 42 ) );
         $this->assertEquals( 'test_view_delete_5', $config->get_nonce_action( 'delete', 5 ) );
+    }
+
+    /**
+     * ==========================================================================
+     * RequestRouter Default Layout Tests
+     * ==========================================================================
+     */
+
+    /**
+     * Get default layout structure according to action (create or edit)
+     */
+    private function build_default_layout_for_action( string $action ): array {
+        $request = new class( $action ) extends Request {
+            public function __construct( public string $current_action ) {}
+            public function get_current_action(): string {
+                return $this->current_action;
+            }
+        };
+
+        $config = new DataViewConfig( [
+            'slug'   => 'dv_layout_test',
+            'label'  => 'Book',
+            'fields' => [
+                'title' => 'string',
+                'author' => 'string'
+            ],
+        ] );
+
+        $dataset = new DataSet();
+        $dataset->add_string( 'title' );
+        $dataset->add_string( 'author' );
+
+        $router = new RequestRouter(
+            $config,
+            $dataset,
+            new PluralHandler( new PluralObject( $config->slug ) ),
+            new FieldTypeRegistry(),
+            new UrlBuilder( $config->get_menu_page() ),
+            request: $request
+        );
+
+        $method = new \ReflectionMethod( $router, 'build_default_layout' );
+        $method->setAccessible( true );
+        $layout = new Layout( $dataset );
+        $method->invoke( $router, $layout );
+
+        return $layout->get_structure();
+    }
+
+    public function test_build_default_layout_uses_create_action_for_create(): void {
+        $this->assertEquals(
+            [ 'create' ],
+            $this->build_default_layout_for_action( 'create' )['sidebar']['actions']
+        );
+    }
+
+    public function test_build_default_layout_uses_save_and_delete_for_edit(): void {
+        $this->assertEquals(
+            [ 'save', 'delete' ],
+            $this->build_default_layout_for_action( 'edit' )['sidebar']['actions']
+        );
+    }
+
+    public function test_build_default_layout_section_contains_config_fields(): void {
+        $structure = $this->build_default_layout_for_action( 'edit' );
+
+        $section = $structure['items'][0];
+        $this->assertEquals( 1, count( $structure['items'] ) );
+        $this->assertEquals( 2, count( $section['fields'] ) );
+
+        $field_slugs = array_column( $section['fields'], 'slug' );
+
+        $this->assertEquals( 'section', $section['type'] );
+        $this->assertEquals( [ 'title', 'author' ], $field_slugs );
     }
 
     /**
