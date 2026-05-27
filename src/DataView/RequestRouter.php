@@ -257,7 +257,7 @@ class RequestRouter {
         }
 
         echo '<form method="post" action="' . esc_url( $this->url_builder->url( 'create' ) ) . '">';
-        wp_nonce_field( $this->url_builder->get_nonce_action( 'create' ) );
+        wp_nonce_field( $this->config->get_nonce_action( 'create' ) );
         echo $this->renderer->render_editor( $layout, $data );
         echo '</form>';
 
@@ -316,7 +316,7 @@ class RequestRouter {
         }
 
         echo '<form method="post" action="' . esc_url( $this->url_builder->url( 'edit', $id ) ) . '">';
-        wp_nonce_field( $this->url_builder->get_nonce_action( 'edit', $id ) );
+        wp_nonce_field( $this->config->get_nonce_action( 'edit', $id ) );
         echo '<input type="hidden" name="id" value="' . esc_attr( (string) $id ) . '">';
         echo $this->renderer->render_editor( $layout, $data );
         echo '</form>';
@@ -388,7 +388,7 @@ class RequestRouter {
         }
 
         echo '<form method="post">';
-        wp_nonce_field( $this->url_builder->get_nonce_action( 'update' ) );
+        wp_nonce_field( $this->config->get_nonce_action( 'update' ) );
         echo $this->renderer->render_editor( $layout, $data );
         echo '</form>';
 
@@ -519,7 +519,7 @@ class RequestRouter {
             $html .= '<td>';
             $html .= '<a href="' . esc_url( $this->url_builder->url( 'edit', $id ) ) . '">Edit</a>';
             $html .= ' | ';
-            $html .= '<a href="' . esc_url( $this->url_builder->url_with_nonce( 'delete', $id, $this->url_builder->get_nonce_action( 'delete', $id ) ) ) . '" onclick="return confirm(\'Are you sure?\');">Delete</a>';
+            $html .= '<a href="' . esc_url( $this->url_builder->url_with_nonce( 'delete', $id, $this->config->get_nonce_action( 'delete', $id ) ) ) . '" onclick="return confirm(\'Are you sure?\');">Delete</a>';
             $html .= '</td>';
 
             $html .= '</tr>';
@@ -537,7 +537,7 @@ class RequestRouter {
      * @return bool True if nonce is valid.
      */
     protected function verify_nonce( string $action, ?int $id = null ): bool {
-        $nonce_action = $this->url_builder->get_nonce_action( $action, $id );
+        $nonce_action = $this->config->get_nonce_action( $action, $id );
         $nonce = $this->request->get_nonce();
         return wp_verify_nonce( $nonce, $nonce_action ) !== false;
     }

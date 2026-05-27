@@ -700,14 +700,6 @@ class DataView_TestCase extends \WP_UnitTestCase {
         $this->assertStringContainsString( 'id=42', $url );
     }
 
-    public function test_url_builder_generates_nonce_action(): void {
-        $builder = new UrlBuilder( 'my_page' );
-
-        $this->assertEquals( 'my_page_create', $builder->get_nonce_action( 'create' ) );
-        $this->assertEquals( 'my_page_edit_42', $builder->get_nonce_action( 'edit', 42 ) );
-        $this->assertEquals( 'my_page_delete_5', $builder->get_nonce_action( 'delete', 5 ) );
-    }
-
     /**
      * ==========================================================================
      * DataView with CPT Storage Tests
@@ -1262,6 +1254,18 @@ class DataView_TestCase extends \WP_UnitTestCase {
         $result = $handler2->read( $id );
         $this->assertTrue( $result->is_success() );
         $this->assertEquals( 'Test Item', $result->get_entity()->get( 'name' ) );
+    }
+
+    public function test_data_view_config_generates_nonce_action(): void {
+        $config = new DataViewConfig( [
+            'slug'   => 'test_view',
+            'label'  => 'Test',
+            'fields' => [ 'name' => 'string' ],
+        ] );
+
+        $this->assertEquals( 'test_view_create', $config->get_nonce_action( 'create' ) );
+        $this->assertEquals( 'test_view_edit_42', $config->get_nonce_action( 'edit', 42 ) );
+        $this->assertEquals( 'test_view_delete_5', $config->get_nonce_action( 'delete', 5 ) );
     }
 
     /**
