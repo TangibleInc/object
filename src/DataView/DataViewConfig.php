@@ -283,6 +283,31 @@ class DataViewConfig {
     }
 
     /**
+     * Generate the nonce action name for a given action and optional ID.
+     *
+     * @param string $action Action name.
+     * @param int|null $id Entity ID.
+     * @return string Nonce action name.
+     */
+    public function get_nonce_action( string $action, ?int $id = null ): string {
+        $nonce = $this->get_menu_page() . '_' . $action;
+        if ( $id !== null ) {
+            $nonce .= '_' . $id;
+        }
+        return $nonce;
+    }
+
+    /**
+     * Generate the nonce request field name for a given action.
+     *
+     * @param string $action Action name.
+     * @return string Nonce field name.
+     */
+    public function get_nonce_name( string $action ): string {
+        return '_wpnonce_' . $action;
+    }
+
+    /**
      * Get the admin menu label.
      *
      * @return string Menu label.
