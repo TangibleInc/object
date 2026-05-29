@@ -143,12 +143,11 @@ class TangibleFieldsRenderer implements Renderer {
         $section_id = sanitize_key( $section['label'] ) . '_' . uniqid();
 
         return $fields->render_field( $section_id, [
-            'type'   => 'accordion',
-            'label'  => $section['label'],
-            'value'  => true,
-            'isOpen' => true, // Expanded by default.
-            'fields' => $section_fields,
-            ...$this->get_memory_store_callbacks(),
+            'type'         => 'accordion',
+            'label'        => $section['label'],
+            'isOpen'       => true, // Expanded by default.
+            'uncontrolled' => true,
+            'fields'       => $section_fields,
         ] );
     }
 
@@ -176,11 +175,11 @@ class TangibleFieldsRenderer implements Renderer {
 
             // Wrap in an accordion to preserve the section label.
             $fields[] = [
-                'type'   => 'accordion',
-                'label'  => $item['label'],
-                'title'  => $item['label'],
-                'value'  => true, // Expanded by default.
-                'fields' => $section_fields,
+                'type'         => 'accordion',
+                'label'        => $item['label'],
+                'title'        => $item['label'],
+                'uncontrolled' => true,
+                'fields'       => $section_fields,
             ];
         } elseif ( $item['type'] === 'tabs' ) {
             foreach ( $item['tabs'] ?? [] as $tab ) {
@@ -234,9 +233,9 @@ class TangibleFieldsRenderer implements Renderer {
         $tabs_id = 'tabs_' . uniqid();
 
         return $fields->render_field( $tabs_id, [
-            'type' => 'tab',
-            'tabs' => $tabs,
-            ...$this->get_memory_store_callbacks(),
+            'type'         => 'tab',
+            'tabs'         => $tabs,
+            'uncontrolled' => true,
         ] );
     }
 
@@ -369,7 +368,6 @@ class TangibleFieldsRenderer implements Renderer {
             'value'       => $this->format_value_for_field( $value, $type ),
             'description' => $field['help'] ?? $config['description'] ?? '',
             'placeholder' => $field['placeholder'] ?? $config['placeholder'] ?? '',
-            ...$this->get_memory_store_callbacks(),
         ];
 
         // Add type-specific options.
@@ -413,7 +411,6 @@ class TangibleFieldsRenderer implements Renderer {
             'value'      => $value,
             'sub_fields' => $sub_fields,
             'layout'     => $config['layout'] ?? 'table',
-            ...$this->get_memory_store_callbacks(),
         ];
 
         // Optional repeater settings.
@@ -643,25 +640,6 @@ class TangibleFieldsRenderer implements Renderer {
     protected function get_default_value( string $slug ): mixed {
         $config = $this->field_configs[ $slug ] ?? [];
         return $config['default'] ?? null;
-    }
-
-    /**
-     * Get memory store callbacks for Tangible Fields.
-     *
-     * We use memory store because DataView handles persistence.
-     *
-     * @return array Store and permission callbacks.
-     */
-    protected function get_memory_store_callbacks(): array {
-        $fields = tangible_fields();
-
-        return [
-            ...$fields->_store_callbacks['memory'](),
-            ...$fields->_permission_callbacks( [
-                'store' => [ 'always_allow' ],
-                'fetch' => [ 'always_allow' ],
-            ] ),
-        ];
     }
 
     /**
