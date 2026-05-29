@@ -29,11 +29,6 @@ class TangibleFieldsRenderer implements Renderer {
     protected array $field_configs = [];
 
     /**
-     * Whether assets have been enqueued.
-     */
-    protected bool $enqueued = false;
-
-    /**
      * Type mapping: DataView type => Tangible Fields type.
      */
     protected array $type_map = [
@@ -94,9 +89,6 @@ class TangibleFieldsRenderer implements Renderer {
         }
 
         $html .= '</div>';
-
-        // Schedule asset enqueueing.
-        $this->schedule_enqueue();
 
         return $html;
     }
@@ -716,31 +708,13 @@ class TangibleFieldsRenderer implements Renderer {
     }
 
     /**
-     * Enqueue Tangible Fields assets.
+     * Required by the interface, but enqueue logic will be handled by
+     * the fields module
+     *
+     * @see https://github.com/TangibleInc/fields/blob/main/enqueue.php
      */
     public function enqueue_assets(): void {
-        if ( $this->enqueued ) {
-            return;
-        }
-
         $this->ensure_tangible_fields_loaded();
-
-        $fields = tangible_fields();
-        $fields->enqueue();
-
-        $this->enqueued = true;
-    }
-
-    /**
-     * Schedule asset enqueueing for the footer.
-     */
-    protected function schedule_enqueue(): void {
-        if ( $this->enqueued ) {
-            return;
-        }
-
-        // Enqueue in footer to ensure all fields are registered.
-        add_action( 'admin_footer', [ $this, 'enqueue_assets' ], 5 );
     }
 
     /**
