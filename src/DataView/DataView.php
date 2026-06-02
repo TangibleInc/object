@@ -106,6 +106,7 @@ class DataView {
                 DataSet::TYPE_STRING  => $this->dataset->add_string( $name ),
                 DataSet::TYPE_INTEGER => $this->dataset->add_integer( $name ),
                 DataSet::TYPE_BOOLEAN => $this->dataset->add_boolean( $name ),
+                DataSet::TYPE_ARRAY   => $this->dataset->add_array( $name ),
             };
         }
     }

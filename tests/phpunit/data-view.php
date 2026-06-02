@@ -211,6 +211,88 @@ class DataView_TestCase extends \WP_UnitTestCase {
         $this->assertFalse( $sanitizer( 'no' ) );
     }
 
+    public function test_field_type_registry_has_map_types(): void {
+        $registry = new FieldTypeRegistry();
+
+        $this->assertTrue( $registry->has_type( 'map' ) );
+        $this->assertTrue( $registry->has_type( 'boolean_map' ) );
+
+        $this->assertEquals( DataSet::TYPE_ARRAY, $registry->get_dataset_type( 'map' ) );
+        $this->assertEquals( DataSet::TYPE_ARRAY, $registry->get_dataset_type( 'boolean_map' ) );
+    }
+
+    public function test_map_sanitizer_keeps_nested_shape(): void {
+        $registry = new FieldTypeRegistry();
+        $sanitizer = $registry->get_sanitizer( 'map' );
+
+        $result = $sanitizer( [
+            'name'   => '<b>Hello</b>',
+            'count'  => 3,
+            'nested' => [ 'flag' => true, 'label' => 'ok' ],
+        ] );
+
+        $this->assertSame( 'Hello', $result['name'] );
+        $this->assertSame( 3, $result['count'] );
+        $this->assertSame( true, $result['nested']['flag'] );
+        $this->assertSame( 'ok', $result['nested']['label'] );
+    }
+
+    public function test_map_sanitizer_returns_empty_array_for_non_array(): void {
+        $registry = new FieldTypeRegistry();
+        $sanitizer = $registry->get_sanitizer( 'map' );
+
+        $this->assertSame( [], $sanitizer( 'not-an-array' ) );
+        $this->assertSame( [], $sanitizer( null ) );
+    }
+
+    public function test_boolean_map_sanitizer_coerces_values_to_real_booleans(): void {
+        $registry = new FieldTypeRegistry();
+        $sanitizer = $registry->get_sanitizer( 'boolean_map' );
+
+        // Values arrive as "1"/"0" strings from hidden form inputs.
+        $result = $sanitizer( [
+            'posts'  => '1',
+            'pages'  => '0',
+            'media'  => 'on',
+            'groups' => '',
+        ] );
+
+        $this->assertSame( true, $result['posts'] );
+        $this->assertSame( false, $result['pages'], 'String "0" must become real false, not a truthy string' );
+        $this->assertSame( true, $result['media'] );
+        $this->assertSame( false, $result['groups'] );
+    }
+
+    public function test_array_field_round_trips_through_dataview_and_option_storage(): void {
+        // Proves the TYPE_ARRAY primitive: a nested array value passes through
+        // coercion untouched and is persisted as a nested array by OptionStorage.
+        // (Boolean coercion is the sanitizer's job, exercised in extract_post_data;
+        // here the handler receives already-sanitized values.)
+        $config = [
+            'slug'    => 'dv_test_map_roundtrip',
+            'label'   => 'Settings',
+            'mode'    => 'singular',
+            'storage' => 'option',
+            'fields'  => [
+                'post_types' => 'boolean_map',
+            ],
+        ];
+
+        $view    = new DataView( $config );
+        $handler = $view->get_handler();
+
+        $result = $handler->update( [
+            'post_types' => [ 'posts' => true, 'pages' => false ],
+        ] );
+
+        $this->assertTrue( $result->is_success() );
+
+        $stored = get_option( 'dv_test_map_roundtrip' );
+        $this->assertIsArray( $stored['post_types'] );
+        $this->assertSame( true, $stored['post_types']['posts'] );
+        $this->assertSame( false, $stored['post_types']['pages'] );
+    }
+
     public function test_field_type_registry_has_repeater_type(): void {
         $registry = new FieldTypeRegistry();
 

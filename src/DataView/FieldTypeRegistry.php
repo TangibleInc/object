@@ -79,6 +79,18 @@ class FieldTypeRegistry {
                 'schema'    => [ 'type' => 'longtext' ],
                 'input'     => 'repeater',
             ],
+            'map' => [
+                'dataset'   => DataSet::TYPE_ARRAY,
+                'sanitizer' => [ $this, 'sanitize_map' ],
+                'schema'    => [ 'type' => 'longtext' ],
+                'input'     => 'hidden',
+            ],
+            'boolean_map' => [
+                'dataset'   => DataSet::TYPE_ARRAY,
+                'sanitizer' => [ $this, 'sanitize_boolean_map' ],
+                'schema'    => [ 'type' => 'longtext' ],
+                'input'     => 'hidden',
+            ],
         ];
     }
 
@@ -251,5 +263,61 @@ class FieldTypeRegistry {
 
             return $sanitized;
         }, $rows ) );
+    }
+
+    /**
+     * Sanitize an associative map value from POST data.
+     *
+     * Keeps the nested array shape (string keys mapped to scalar values),
+     * recursing into nested maps. Values are limited to JSON-compatible
+     * primitives; strings are run through sanitize_text_field.
+     *
+     * @param mixed $value Value to sanitize (associative array).
+     * @return array Sanitized associative array.
+     */
+    public function sanitize_map( mixed $value ): array {
+        if ( ! is_array( $value ) ) {
+            return [];
+        }
+
+        $sanitized = [];
+        foreach ( $value as $key => $item ) {
+            $key = is_string( $key ) ? sanitize_key( $key ) : $key;
+
+            if ( is_array( $item ) ) {
+                $sanitized[ $key ] = $this->sanitize_map( $item );
+            } elseif ( is_string( $item ) ) {
+                $sanitized[ $key ] = sanitize_text_field( $item );
+            } elseif ( is_int( $item ) || is_float( $item ) || is_bool( $item ) || is_null( $item ) ) {
+                $sanitized[ $key ] = $item;
+            }
+            // Skip any other types for security.
+        }
+
+        return $sanitized;
+    }
+
+    /**
+     * Sanitize a map of boolean flags from POST data.
+     *
+     * Each value is coerced to a real boolean, so values submitted as the
+     * strings "1"/"0" (e.g. from hidden form inputs) are stored as true/false
+     * rather than truthy strings.
+     *
+     * @param mixed $value Value to sanitize (associative array of flags).
+     * @return array<string, bool> Sanitized map of booleans.
+     */
+    public function sanitize_boolean_map( mixed $value ): array {
+        if ( ! is_array( $value ) ) {
+            return [];
+        }
+
+        $sanitized = [];
+        foreach ( $value as $key => $item ) {
+            $key = is_string( $key ) ? sanitize_key( $key ) : $key;
+            $sanitized[ $key ] = $this->sanitize_boolean( $item );
+        }
+
+        return $sanitized;
     }
 }
