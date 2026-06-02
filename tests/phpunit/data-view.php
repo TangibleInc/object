@@ -380,6 +380,75 @@ class DataView_TestCase extends \WP_UnitTestCase {
         return $property->getValue( $view );
     }
 
+    /**
+     * Render the protected notices output for a DataView's router.
+     */
+    private function render_notices_output( DataView $view ): string {
+        $router = $this->get_router( $view );
+        $method = new \ReflectionMethod( \Tangible\DataView\RequestRouter::class, 'render_notices' );
+        $method->setAccessible( true );
+
+        ob_start();
+        $method->invoke( $router );
+        return ob_get_clean();
+    }
+
+    public function test_notices_config_defaults_to_true(): void {
+        $config = new DataViewConfig( [
+            'slug'   => 'dv_test_notices_default',
+            'label'  => 'Settings',
+            'fields' => [ 'enabled' => 'boolean' ],
+        ] );
+
+        $this->assertTrue( $config->notices );
+    }
+
+    public function test_notices_config_can_be_disabled(): void {
+        $config = new DataViewConfig( [
+            'slug'     => 'dv_test_notices_off',
+            'label'    => 'Settings',
+            'fields'   => [ 'enabled' => 'boolean' ],
+            'notices'  => false,
+        ] );
+
+        $this->assertFalse( $config->notices );
+    }
+
+    public function test_render_notices_outputs_when_enabled(): void {
+        $_GET['updated'] = '1';
+
+        $view = new DataView( [
+            'slug'    => 'dv_test_notices_on_render',
+            'label'   => 'Settings',
+            'mode'    => 'singular',
+            'storage' => 'option',
+            'fields'  => [ 'enabled' => 'boolean' ],
+        ] );
+
+        $output = $this->render_notices_output( $view );
+        unset( $_GET['updated'] );
+
+        $this->assertStringContainsString( 'notice-success', $output );
+    }
+
+    public function test_render_notices_suppressed_when_disabled(): void {
+        $_GET['updated'] = '1';
+
+        $view = new DataView( [
+            'slug'     => 'dv_test_notices_off_render',
+            'label'    => 'Settings',
+            'mode'     => 'singular',
+            'storage'  => 'option',
+            'fields'   => [ 'enabled' => 'boolean' ],
+            'notices'  => false,
+        ] );
+
+        $output = $this->render_notices_output( $view );
+        unset( $_GET['updated'] );
+
+        $this->assertSame( '', $output, 'render_notices() must output nothing when notices are disabled' );
+    }
+
     public function test_field_type_registry_has_repeater_type(): void {
         $registry = new FieldTypeRegistry();
 
