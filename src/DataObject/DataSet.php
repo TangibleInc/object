@@ -15,6 +15,7 @@ class DataSet {
     public const TYPE_STRING = 'string';
     public const TYPE_INTEGER = 'int';
     public const TYPE_BOOLEAN = 'bool';
+    public const TYPE_ARRAY = 'array';
 
     /**
      * @var array
@@ -77,6 +78,21 @@ class DataSet {
     }
 
     /**
+     * Add an array based field to the dataset.
+     *
+     * Array fields hold structured (nested) values such as associative maps
+     * and are stored as-is. Their values pass through coercion untouched.
+     *
+     * @param String $slug the field name.
+     */
+    public function add_array( string $slug ) {
+        $this->fields[ $slug ] = [
+            'type' => self::TYPE_ARRAY,
+        ];
+        return $this;
+    }
+
+    /**
      * Coerce a value to the correct type based on field definition.
      *
      * @param string $slug the field name.
@@ -94,6 +110,7 @@ class DataSet {
             self::TYPE_STRING  => (string) $value,
             self::TYPE_INTEGER => (int) $value,
             self::TYPE_BOOLEAN => $this->coerce_boolean( $value ),
+            self::TYPE_ARRAY   => is_array( $value ) ? $value : [],
             default            => $value,
         };
     }
