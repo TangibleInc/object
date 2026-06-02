@@ -600,6 +600,10 @@ class RequestRouter {
      * Render success/error notices from query params.
      */
     protected function render_notices(): void {
+        if ( ! $this->config->notices ) {
+            return;
+        }
+
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         if ( isset( $_GET['created'] ) ) {
             echo '<div class="notice notice-success is-dismissible"><p>' . esc_html( $this->get_label( 'item_created' ) ) . '</p></div>';

@@ -16,6 +16,18 @@ class DataViewConfig {
     public readonly array $storage_options;
 
     /**
+     * Whether DataView renders its own success/error notices.
+     *
+     * Set to false when the host environment already renders save notices for
+     * this page — e.g. a settings page under the WordPress "Settings" menu,
+     * where core's options-head.php shows a native "Settings saved." notice for
+     * the `updated=1` redirect. Leaving this true there would double the notice.
+     *
+     * @var bool
+     */
+    public readonly bool $notices;
+
+    /**
      * Full field configurations including repeater sub-fields.
      *
      * Each entry is an array with at least 'type' key.
@@ -70,6 +82,7 @@ class DataViewConfig {
         $this->mode            = $config['mode'] ?? 'plural';
         $this->capability      = $config['capability'] ?? 'manage_options';
         $this->storage_options = $config['storage_options'] ?? [];
+        $this->notices         = $config['notices'] ?? true;
 
         // Parse field configurations (supports both simple and complex definitions).
         $this->field_configs = $this->parse_field_configs( $config['fields'] );
