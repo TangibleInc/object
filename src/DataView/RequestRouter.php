@@ -144,9 +144,17 @@ class RequestRouter {
      * @param int|null $id Entity ID.
      */
     public function maybe_redirect(): void {
-        $this->check_capability();
+        // This runs on the global admin_init hook, so it must ignore requests
+        // that are not targeting this DataView's own admin page. Without this
+        // guard it would intercept every admin POST (e.g. core or other-plugin
+        // settings) and fail their nonce check with "Security check failed.".
+        if ( $this->request->get_current_page() !== $this->config->get_menu_page() ) {
+            return;
+        }
 
         if ( ! $this->request->is_post() ) return;
+
+        $this->check_capability();
 
         if ( $this->config->is_singular() ) {
             $this->handle_settings_submit();

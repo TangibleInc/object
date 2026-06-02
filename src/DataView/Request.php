@@ -48,6 +48,18 @@ class Request {
     }
 
     /**
+     * Get the current admin page slug from the request.
+     *
+     * Corresponds to the `page` query argument WordPress sets when an admin
+     * menu page is being viewed or submitted to.
+     *
+     * @return string Current page slug (empty string if not present).
+     */
+    public function get_current_page(): string {
+        return sanitize_key( (string) $this->rest_request->get_param( 'page' ) );
+    }
+
+    /**
      * Get the entity ID from the current request.
      *
      * @return int|null Entity ID or null if not present.
