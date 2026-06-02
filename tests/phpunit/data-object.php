@@ -84,6 +84,38 @@ class DataObject_TestCase extends \WP_UnitTestCase {
         $this->assertEquals(DataSet::TYPE_BOOLEAN, $fields['is_active']['type']);
     }
 
+    public function test_dataset_can_add_array_field(): void {
+        $dataset = new DataSet();
+        $dataset->add_array('post_types');
+
+        $fields = $dataset->get_fields();
+        $this->assertArrayHasKey('post_types', $fields);
+        $this->assertEquals(DataSet::TYPE_ARRAY, $fields['post_types']['type']);
+    }
+
+    public function test_dataset_coerces_array_field_as_passthrough(): void {
+        $dataset = new DataSet();
+        $dataset->add_array('post_types');
+
+        $value = ['posts' => true, 'pages' => false];
+        $this->assertSame($value, $dataset->coerce('post_types', $value));
+
+        // Non-array values coerce to an empty array.
+        $this->assertSame([], $dataset->coerce('post_types', 'nonsense'));
+    }
+
+    public function test_singular_object_can_save_and_retrieve_array_value(): void {
+        $dataset = new DataSet();
+        $dataset->add_array('post_types');
+
+        $object = new SingularObject('test_settings');
+        $object->set_dataset($dataset);
+
+        $value = ['posts' => true, 'pages' => false];
+        $object->set('post_types', $value);
+        $this->assertSame($value, $object->get('post_types'));
+    }
+
     public function test_dataset_can_add_multiple_fields(): void {
         $dataset = new DataSet();
         $dataset->add_string('title');
