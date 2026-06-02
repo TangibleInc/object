@@ -293,6 +293,93 @@ class DataView_TestCase extends \WP_UnitTestCase {
         $this->assertSame( false, $stored['post_types']['pages'] );
     }
 
+    public function test_request_exposes_current_page(): void {
+        $_GET['page'] = 'My-Settings_Page';
+        $request = new Request();
+        $this->assertSame( 'my-settings_page', $request->get_current_page() );
+        unset( $_GET['page'] );
+
+        $this->assertSame( '', ( new Request() )->get_current_page() );
+    }
+
+    /**
+     * Regression: maybe_redirect() runs on the global admin_init hook, so a POST
+     * to an UNRELATED admin page (core settings, another plugin) must be ignored
+     * rather than failing its nonce check with "Security check failed.".
+     */
+    public function test_maybe_redirect_ignores_posts_to_other_pages(): void {
+        $config = [
+            'slug'    => 'dv_test_scope_settings',
+            'label'   => 'Settings',
+            'mode'    => 'singular',
+            'storage' => 'option',
+            'fields'  => [ 'enabled' => 'boolean' ],
+        ];
+
+        $saved_method        = $_SERVER['REQUEST_METHOD'] ?? null;
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_GET['page']        = 'some_other_plugin_page';
+        $_POST['some_field'] = 'value';
+
+        // Request snapshots the superglobals at construction.
+        $router = $this->get_router( new DataView( $config ) );
+
+        // Must return without calling wp_die() (no WPDieException thrown).
+        $router->maybe_redirect();
+        $this->assertTrue( true, 'maybe_redirect() returned without intercepting an unrelated page' );
+
+        unset( $_GET['page'], $_POST['some_field'] );
+        if ( $saved_method === null ) {
+            unset( $_SERVER['REQUEST_METHOD'] );
+        } else {
+            $_SERVER['REQUEST_METHOD'] = $saved_method;
+        }
+    }
+
+    /**
+     * The guard still lets a POST to this DataView's own page through to the
+     * nonce check — an invalid nonce on our own page should fail closed.
+     */
+    public function test_maybe_redirect_enforces_nonce_on_own_page(): void {
+        wp_set_current_user( $this->factory->user->create( [ 'role' => 'administrator' ] ) );
+
+        $config = [
+            'slug'    => 'dv_test_scope_own',
+            'label'   => 'Settings',
+            'mode'    => 'singular',
+            'storage' => 'option',
+            'fields'  => [ 'enabled' => 'boolean' ],
+        ];
+
+        $saved_method        = $_SERVER['REQUEST_METHOD'] ?? null;
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_GET['page']        = 'dv_test_scope_own';
+        $_POST['enabled']    = '1'; // no valid _wpnonce_update field
+
+        $router = $this->get_router( new DataView( $config ) );
+
+        $this->expectException( \WPDieException::class );
+        try {
+            $router->maybe_redirect();
+        } finally {
+            unset( $_GET['page'], $_POST['enabled'] );
+            if ( $saved_method === null ) {
+                unset( $_SERVER['REQUEST_METHOD'] );
+            } else {
+                $_SERVER['REQUEST_METHOD'] = $saved_method;
+            }
+        }
+    }
+
+    /**
+     * Reach the protected RequestRouter on a DataView for direct invocation.
+     */
+    private function get_router( DataView $view ): \Tangible\DataView\RequestRouter {
+        $property = new \ReflectionProperty( DataView::class, 'router' );
+        $property->setAccessible( true );
+        return $property->getValue( $view );
+    }
+
     public function test_field_type_registry_has_repeater_type(): void {
         $registry = new FieldTypeRegistry();
 
