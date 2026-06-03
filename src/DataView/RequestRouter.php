@@ -144,6 +144,16 @@ class RequestRouter {
      * @param int|null $id Entity ID.
      */
     public function maybe_redirect(): void {
+        // maybe_redirect() is hooked on the global admin_init, so it fires on
+        // every admin request — including unrelated POSTs such as Gutenberg
+        // meta-box saves (post.php?meta-box-loader=1). Without this guard those
+        // POSTs get routed into handle_settings_submit()/handle_*_submit(),
+        // fail the DataView's own nonce check, and wp_die( 'Security check
+        // failed.' ) — breaking every meta-box save on the site. Only act when
+        // the request actually targets this DataView's own admin page.
+        $current_page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
+        if ( $current_page !== $this->config->get_menu_page() ) return;
+
         $this->check_capability();
 
         if ( ! $this->request->is_post() ) return;
