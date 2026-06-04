@@ -1808,7 +1808,7 @@ class DataView_TestCase extends \WP_UnitTestCase {
         $this->assertArrayHasKey( 'title', $result[0] ); // Required by Fields library.
         $this->assertEquals( 'Contact Info', $result[0]['title'] );
         $this->assertEquals( 'Contact Info', $result[0]['label'] );
-        $this->assertTrue( $result[0]['value'] ); // Expanded by default.
+        $this->assertTrue( $result[0]['uncontrolled'] );
         $this->assertArrayHasKey( 'fields', $result[0] );
         $this->assertCount( 2, $result[0]['fields'] );
     }

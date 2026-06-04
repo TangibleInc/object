@@ -29,11 +29,6 @@ class TangibleFieldsRenderer implements Renderer {
     protected array $field_configs = [];
 
     /**
-     * Whether assets have been enqueued.
-     */
-    protected bool $enqueued = false;
-
-    /**
      * Type mapping: DataView type => Tangible Fields type.
      */
     protected array $type_map = [
@@ -95,9 +90,6 @@ class TangibleFieldsRenderer implements Renderer {
 
         $html .= '</div>';
 
-        // Schedule asset enqueueing.
-        $this->schedule_enqueue();
-
         return $html;
     }
 
@@ -143,12 +135,11 @@ class TangibleFieldsRenderer implements Renderer {
         $section_id = sanitize_key( $section['label'] ) . '_' . uniqid();
 
         return $fields->render_field( $section_id, [
-            'type'   => 'accordion',
-            'label'  => $section['label'],
-            'value'  => true,
-            'isOpen' => true, // Expanded by default.
-            'fields' => $section_fields,
-            ...$this->get_memory_store_callbacks(),
+            'type'         => 'accordion',
+            'label'        => $section['label'],
+            'isOpen'       => true, // Expanded by default.
+            'uncontrolled' => true,
+            'fields'       => $section_fields,
         ] );
     }
 
@@ -176,11 +167,11 @@ class TangibleFieldsRenderer implements Renderer {
 
             // Wrap in an accordion to preserve the section label.
             $fields[] = [
-                'type'   => 'accordion',
-                'label'  => $item['label'],
-                'title'  => $item['label'],
-                'value'  => true, // Expanded by default.
-                'fields' => $section_fields,
+                'type'         => 'accordion',
+                'label'        => $item['label'],
+                'title'        => $item['label'],
+                'uncontrolled' => true,
+                'fields'       => $section_fields,
             ];
         } elseif ( $item['type'] === 'tabs' ) {
             foreach ( $item['tabs'] ?? [] as $tab ) {
@@ -234,9 +225,9 @@ class TangibleFieldsRenderer implements Renderer {
         $tabs_id = 'tabs_' . uniqid();
 
         return $fields->render_field( $tabs_id, [
-            'type' => 'tab',
-            'tabs' => $tabs,
-            ...$this->get_memory_store_callbacks(),
+            'type'         => 'tab',
+            'tabs'         => $tabs,
+            'uncontrolled' => true,
         ] );
     }
 
@@ -369,7 +360,6 @@ class TangibleFieldsRenderer implements Renderer {
             'value'       => $this->format_value_for_field( $value, $type ),
             'description' => $field['help'] ?? $config['description'] ?? '',
             'placeholder' => $field['placeholder'] ?? $config['placeholder'] ?? '',
-            ...$this->get_memory_store_callbacks(),
         ];
 
         // Add type-specific options.
@@ -413,7 +403,6 @@ class TangibleFieldsRenderer implements Renderer {
             'value'      => $value,
             'sub_fields' => $sub_fields,
             'layout'     => $config['layout'] ?? 'table',
-            ...$this->get_memory_store_callbacks(),
         ];
 
         // Optional repeater settings.
@@ -646,25 +635,6 @@ class TangibleFieldsRenderer implements Renderer {
     }
 
     /**
-     * Get memory store callbacks for Tangible Fields.
-     *
-     * We use memory store because DataView handles persistence.
-     *
-     * @return array Store and permission callbacks.
-     */
-    protected function get_memory_store_callbacks(): array {
-        $fields = tangible_fields();
-
-        return [
-            ...$fields->_store_callbacks['memory'](),
-            ...$fields->_permission_callbacks( [
-                'store' => [ 'always_allow' ],
-                'fetch' => [ 'always_allow' ],
-            ] ),
-        ];
-    }
-
-    /**
      * Render a list of entities.
      *
      * For list rendering, we use simple HTML tables since Tangible Fields
@@ -738,31 +708,13 @@ class TangibleFieldsRenderer implements Renderer {
     }
 
     /**
-     * Enqueue Tangible Fields assets.
+     * Required by the interface, but enqueue logic will be handled by
+     * the fields module
+     *
+     * @see https://github.com/TangibleInc/fields/blob/main/enqueue.php
      */
     public function enqueue_assets(): void {
-        if ( $this->enqueued ) {
-            return;
-        }
-
         $this->ensure_tangible_fields_loaded();
-
-        $fields = tangible_fields();
-        $fields->enqueue();
-
-        $this->enqueued = true;
-    }
-
-    /**
-     * Schedule asset enqueueing for the footer.
-     */
-    protected function schedule_enqueue(): void {
-        if ( $this->enqueued ) {
-            return;
-        }
-
-        // Enqueue in footer to ensure all fields are registered.
-        add_action( 'admin_footer', [ $this, 'enqueue_assets' ], 5 );
     }
 
     /**
