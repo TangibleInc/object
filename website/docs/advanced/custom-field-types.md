@@ -61,7 +61,7 @@ $view = new DataView([
         'name'  => 'string',
         'price' => 'currency',  // Custom type
     ],
-]);
+], $registry);
 ```
 
 ## Example: Slug Field
@@ -140,7 +140,7 @@ $view = new DataView([
         'phone'  => 'phone',     // Custom type
         'budget' => 'currency',  // Custom type
     ],
-]);
+], $registry);
 ```
 
 ## Sharing Types Across Views
@@ -153,8 +153,8 @@ $registry = new \Tangible\DataView\FieldTypeRegistry();
 $registry->register_type('phone', [...]);
 
 // Use it for multiple views
-$view1 = new DataView(['fields' => ['phone' => 'phone'], ...]);
-$view2 = new DataView(['fields' => ['mobile' => 'phone'], ...]);
+$view1 = new DataView(['fields' => ['phone' => 'phone'], ...], $registry);
+$view2 = new DataView(['fields' => ['mobile' => 'phone'], ...], $registry);
 ```
 
 ## Database Schema Options
