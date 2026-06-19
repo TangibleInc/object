@@ -189,7 +189,7 @@ class HtmlRenderer implements Renderer {
      * @return string The rendered HTML.
      */
     protected function render_action( string $action ): string {
-        $type = ( $action === 'save' ) ? 'submit' : 'button';
+        $type = in_array( $action, [ 'save', 'create', 'edit' ], true ) ? 'submit' : 'button';
         $label = ucfirst( $action );
 
         return '<button type="' . $type . '" name="action" value="' . $this->escape( $action ) . '">' . $this->escape( $label ) . '</button>';
