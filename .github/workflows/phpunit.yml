@@ -33,7 +33,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup PHP ${{ matrix.php-version }}
         uses: shivammathur/setup-php@v2
@@ -57,19 +57,19 @@ jobs:
         run: composer install --prefer-dist --no-progress
 
       - name: Checkout WordPress develop
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: WordPress/wordpress-develop
           path: wordpress-develop
 
       - name: Checkout database-module
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: TangibleInc/database-module
           path: database-module
 
       - name: Checkout fields
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: TangibleInc/fields
           path: fields
