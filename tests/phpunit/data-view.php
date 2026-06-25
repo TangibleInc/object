@@ -33,6 +33,14 @@ use Tangible\RequestHandler\Validators;
  */
 class DataView_TestCase extends \WP_UnitTestCase {
 
+    public function setUp(): void {
+        parent::setUp();
+
+        if ( function_exists( 'tangible_fields' ) ) {
+            tangible_fields()->registered_fields = [];
+        }
+    }
+
     /**
      * ==========================================================================
      * FieldTypeRegistry Tests
@@ -1841,6 +1849,285 @@ class DataView_TestCase extends \WP_UnitTestCase {
         $this->assertStringContainsString( '<button', $custom_html );
         $this->assertStringContainsString( 'value="archive"', $custom_html );
         $this->assertStringContainsString( '>Archive</button>', $custom_html );
+    }
+
+    /**
+     * Render a DataView definition through the renderer and assert the exact
+     * args each field ends up registered with in Tangible Fields.
+     *
+     * @dataProvider field_definition_provider
+     */
+    public function test_renderer_registers_expected_field_args(
+        array $field_configs,
+        array $data,
+        string $lookup,
+        array $expected
+    ): void {
+        if ( ! function_exists( 'tangible_fields' ) ) {
+            $this->markTestSkipped( 'Tangible Fields framework is not loaded.' );
+        }
+
+        $dataset = new DataSet();
+        foreach ( array_keys( $field_configs ) as $slug ) {
+            $dataset->add_string( $slug );
+        }
+
+        $layout = new Layout( $dataset );
+        $layout->section( 'General', function ( $section ) use ( $field_configs ) {
+            foreach ( array_keys( $field_configs ) as $slug ) {
+                $section->field( $slug );
+            }
+        } );
+
+        $renderer = new \Tangible\Renderer\TangibleFieldsRenderer();
+        $renderer->set_field_configs( $field_configs );
+        $renderer->render_editor( $layout, $data );
+
+        $config = $this->find_registered_field( $lookup );
+
+        $this->assertNotNull( $config, "Field '{$lookup}' should be registered" );
+        $this->assertEquals( $expected, $config );
+
+        // assertEquals is loose ( '5' == 5, '1' == true ), so pin the value's type
+        // strictly to actually validate the integer/boolean casts.
+        if ( array_key_exists( 'value', $expected ) ) {
+            $this->assertSame( $expected['value'], $config['value'] );
+        }
+    }
+
+    public function field_definition_provider(): array {
+
+        /**
+         * Each case is:
+         * - field_configs => configs registered on the renderer
+         * - data          => entity values, keyed by slug (drives value formatting)
+         * - lookup        => field name to find in the registered tree
+         * - expected      => the exact args that field should be registered with
+         */
+        return [
+
+            'string maps to text' => [
+                [ 'title' => [ 'type' => 'string' ] ],
+                [],
+                'title',
+                [
+                    'type'        => 'text',
+                    'name'        => 'title',
+                    'label'       => 'Title',
+                    'description' => '',
+                    'placeholder' => '',
+                    'value'       => '',
+                ],
+            ],
+
+            'text maps to textarea with rows' => [
+                [ 'body' => [ 'type' => 'text', 'rows' => 5 ] ],
+                [],
+                'body',
+                [
+                    'type'        => 'textarea',
+                    'name'        => 'body',
+                    'label'       => 'Body',
+                    'description' => '',
+                    'placeholder' => '',
+                    'rows'        => 5,
+                    'value'       => '',
+                ],
+            ],
+
+            'integer maps to number with min/max and casts value' => [
+                [ 'count' => [ 'type' => 'integer', 'min' => 0, 'max' => 10 ] ],
+                [ 'count' => '5' ],
+                'count',
+                [
+                    'type'        => 'number',
+                    'name'        => 'count',
+                    'label'       => 'Count',
+                    'description' => '',
+                    'placeholder' => '',
+                    'min'         => 0,
+                    'max'         => 10,
+                    'value'       => 5,
+                ],
+            ],
+
+            'boolean maps to switch and casts value' => [
+                [ 'active' => [ 'type' => 'boolean' ] ],
+                [ 'active' => '1' ],
+                'active',
+                [
+                    'type'        => 'switch',
+                    'name'        => 'active',
+                    'label'       => 'Active',
+                    'description' => '',
+                    'placeholder' => '',
+                    'value_on'    => true,
+                    'value_off'   => false,
+                    'value'       => true,
+                ],
+            ],
+
+            'date maps to date_picker with future_only' => [
+                [ 'due' => [ 'type' => 'date', 'future_only' => true ] ],
+                [],
+                'due',
+                [
+                    'type'        => 'date_picker',
+                    'name'        => 'due',
+                    'label'       => 'Due',
+                    'description' => '',
+                    'placeholder' => '',
+                    'future_only' => true,
+                    'value'       => '',
+                ],
+            ],
+
+            'label, description and placeholder overrides are honored' => [
+                [
+                    'email' => [
+                        'type'        => 'email',
+                        'label'       => 'E-mail',
+                        'description' => 'Contact',
+                        'placeholder' => 'you@example.com',
+                    ],
+                ],
+                [],
+                'email',
+                [
+                    'type'        => 'text',
+                    'name'        => 'email',
+                    'label'       => 'E-mail',
+                    'description' => 'Contact',
+                    'placeholder' => 'you@example.com',
+                    'value'       => '',
+                ],
+            ],
+
+            'readonly config sets read_only' => [
+                [ 'ref' => [ 'type' => 'string', 'readonly' => true ] ],
+                [],
+                'ref',
+                [
+                    'type'        => 'text',
+                    'name'        => 'ref',
+                    'label'       => 'Ref',
+                    'description' => '',
+                    'placeholder' => '',
+                    'read_only'   => true,
+                    'value'       => '',
+                ],
+            ],
+
+            'repeater carries all settings and maps sub-fields' => [
+                [
+                    'items' => [
+                        'type'         => 'repeater',
+                        'layout'       => 'table',
+                        'min_rows'     => 1,
+                        'max_rows'     => 5,
+                        'button_label' => 'Add row',
+                        'sub_fields'   => [
+                            [ 'name' => 'title', 'type' => 'string' ],
+                            [ 'name' => 'count', 'type' => 'integer', 'min' => 0 ],
+                        ],
+                    ],
+                ],
+                [],
+                'items',
+                [
+                    'type'        => 'repeater',
+                    'name'        => 'items',
+                    'label'       => 'Items',
+                    'description' => '',
+                    'placeholder' => '',
+                    'sub_fields'  => [
+                        [
+                            'type'        => 'text',
+                            'name'        => 'title',
+                            'label'       => 'Title',
+                            'description' => '',
+                            'placeholder' => '',
+                        ],
+                        [
+                            'type'        => 'number',
+                            'name'        => 'count',
+                            'label'       => 'Count',
+                            'description' => '',
+                            'placeholder' => '',
+                            'min'         => 0,
+                        ],
+                    ],
+                    'layout'      => 'table',
+                    'maxlength'   => 5,
+                    'minlength'   => 1,
+                    'new_item'    => 'Add row',
+                    'value'       => '[]',
+                ],
+            ],
+        ];
+    }
+
+    public function test_renderer_rejects_unsupported_repeater_sub_field_type(): void {
+        if ( ! function_exists( 'tangible_fields' ) ) {
+            $this->markTestSkipped( 'Tangible Fields framework is not loaded.' );
+        }
+
+        $renderer = new \Tangible\Renderer\TangibleFieldsRenderer();
+        $renderer->set_field_configs( [
+            'items' => [
+                'type'       => 'repeater',
+                'sub_fields' => [
+                    // Nested repeaters are unsupported: storage persists only flat scalar rows.
+                    [ 'name' => 'nested', 'type' => 'repeater', 'sub_fields' => [] ],
+                ],
+            ],
+        ] );
+
+        $dataset = new DataSet();
+        $dataset->add_string( 'items' );
+
+        $layout = new Layout( $dataset );
+        $layout->section( 'General', fn( $section ) => $section->field( 'items' ) );
+
+        $this->expectException( \InvalidArgumentException::class );
+        $this->expectExceptionMessage( 'Unsupported repeater sub-field type' );
+        $renderer->render_editor( $layout, [] );
+    }
+
+    /**
+     * Find a field config by name anywhere in the registered fields tree
+     * (top-level fields, section/tab children, repeater sub-fields).
+     *
+     * The root call omits $configs; recursion passes the subtree to search.
+     */
+    private function find_registered_field( string $name, ?array $configs = null ): ?array {
+        foreach ( $configs ?? tangible_fields()->registered_fields as $config ) {
+            if ( ! is_array( $config ) ) {
+                continue;
+            }
+
+            if ( ( $config['name'] ?? null ) === $name ) {
+                return $config;
+            }
+
+            foreach ( [ 'fields', 'sub_fields' ] as $children ) {
+                if ( ! empty( $config[ $children ] ) && is_array( $config[ $children ] )
+                    && $found = $this->find_registered_field( $name, $config[ $children ] )
+                ) {
+                    return $found;
+                }
+            }
+
+            foreach ( $config['tabs'] ?? [] as $tab ) {
+                if ( ! empty( $tab['fields'] ) && is_array( $tab['fields'] )
+                    && $found = $this->find_registered_field( $name, $tab['fields'] )
+                ) {
+                    return $found;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
