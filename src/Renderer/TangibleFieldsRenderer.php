@@ -360,6 +360,7 @@ class TangibleFieldsRenderer implements Renderer {
             'value'       => $this->format_value_for_field( $value, $type ),
             'description' => $field['help'] ?? $config['description'] ?? '',
             'placeholder' => $field['placeholder'] ?? $config['placeholder'] ?? '',
+            'condition'   => $config['condition'] ?? [],
         ];
 
         // Add type-specific options.
@@ -403,6 +404,7 @@ class TangibleFieldsRenderer implements Renderer {
             'value'      => $value,
             'sub_fields' => $sub_fields,
             'layout'     => $config['layout'] ?? 'table',
+            'condition'  => $config['condition'] ?? [],
         ];
 
         // Optional repeater settings.
@@ -439,9 +441,10 @@ class TangibleFieldsRenderer implements Renderer {
             $tf_type = $this->sub_field_type_map[ $type ] ?? 'text';
 
             $mapped_field = [
-                'type'  => $tf_type,
-                'name'  => $sub_field['name'],
-                'label' => $sub_field['label'] ?? ucfirst( str_replace( '_', ' ', $sub_field['name'] ) ),
+                'type'      => $tf_type,
+                'name'      => $sub_field['name'],
+                'label'     => $sub_field['label'] ?? ucfirst( str_replace( '_', ' ', $sub_field['name'] ) ),
+                'condition' => $sub_field['condition'] ?? [],
             ];
 
             // Add optional properties.
@@ -504,6 +507,7 @@ class TangibleFieldsRenderer implements Renderer {
                 'value'      => $value,
                 'sub_fields' => $sub_fields,
                 'layout'     => $config['layout'] ?? 'table',
+                'condition'  => $config['condition'] ?? [],
             ];
 
             if ( isset( $config['max_rows'] ) ) {
@@ -522,6 +526,7 @@ class TangibleFieldsRenderer implements Renderer {
             'value'       => $this->format_value_for_field( $value, $type ),
             'description' => $field['help'] ?? $config['description'] ?? '',
             'placeholder' => $field['placeholder'] ?? $config['placeholder'] ?? '',
+            'condition'   => $config['condition'] ?? [],
         ];
 
         // Add type-specific options.
