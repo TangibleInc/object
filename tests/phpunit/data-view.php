@@ -1896,7 +1896,6 @@ class DataView_TestCase extends \WP_UnitTestCase {
     }
 
     public function field_definition_provider(): array {
-
         /**
          * Each case is:
          * - field_configs => configs registered on the renderer
@@ -1917,6 +1916,7 @@ class DataView_TestCase extends \WP_UnitTestCase {
                     'description' => '',
                     'placeholder' => '',
                     'value'       => '',
+                    'condition'   => []
                 ],
             ],
 
@@ -1932,6 +1932,7 @@ class DataView_TestCase extends \WP_UnitTestCase {
                     'placeholder' => '',
                     'rows'        => 5,
                     'value'       => '',
+                    'condition'   => []
                 ],
             ],
 
@@ -1948,6 +1949,7 @@ class DataView_TestCase extends \WP_UnitTestCase {
                     'min'         => 0,
                     'max'         => 10,
                     'value'       => 5,
+                    'condition'   => []
                 ],
             ],
 
@@ -1964,6 +1966,7 @@ class DataView_TestCase extends \WP_UnitTestCase {
                     'value_on'    => true,
                     'value_off'   => false,
                     'value'       => true,
+                    'condition'   => []
                 ],
             ],
 
@@ -1979,6 +1982,7 @@ class DataView_TestCase extends \WP_UnitTestCase {
                     'placeholder' => '',
                     'future_only' => true,
                     'value'       => '',
+                    'condition'   => []
                 ],
             ],
 
@@ -2000,6 +2004,7 @@ class DataView_TestCase extends \WP_UnitTestCase {
                     'description' => 'Contact',
                     'placeholder' => 'you@example.com',
                     'value'       => '',
+                    'condition'   => []
                 ],
             ],
 
@@ -2015,6 +2020,7 @@ class DataView_TestCase extends \WP_UnitTestCase {
                     'placeholder' => '',
                     'read_only'   => true,
                     'value'       => '',
+                    'condition'   => []
                 ],
             ],
 
@@ -2040,6 +2046,7 @@ class DataView_TestCase extends \WP_UnitTestCase {
                     'label'       => 'Items',
                     'description' => '',
                     'placeholder' => '',
+                    'condition'   => [],
                     'sub_fields'  => [
                         [
                             'type'        => 'text',
@@ -2047,6 +2054,7 @@ class DataView_TestCase extends \WP_UnitTestCase {
                             'label'       => 'Title',
                             'description' => '',
                             'placeholder' => '',
+                            'condition'   => []
                         ],
                         [
                             'type'        => 'number',
@@ -2055,6 +2063,7 @@ class DataView_TestCase extends \WP_UnitTestCase {
                             'description' => '',
                             'placeholder' => '',
                             'min'         => 0,
+                            'condition'   => []
                         ],
                     ],
                     'layout'      => 'table',
@@ -2320,42 +2329,6 @@ class DataView_TestCase extends \WP_UnitTestCase {
                 [],
             ],
         ];
-    }
-
-    /**
-     * Find a field config by name anywhere in the registered fields tree
-     * (top-level fields, section/tab children, repeater sub-fields).
-     *
-     * The root call omits $configs; recursion passes the subtree to search.
-     */
-    private function find_registered_field( string $name, ?array $configs = null ): ?array {
-        foreach ( $configs ?? tangible_fields()->registered_fields as $config ) {
-            if ( ! is_array( $config ) ) {
-                continue;
-            }
-
-            if ( ( $config['name'] ?? null ) === $name ) {
-                return $config;
-            }
-
-            foreach ( [ 'fields', 'sub_fields' ] as $children ) {
-                if ( ! empty( $config[ $children ] ) && is_array( $config[ $children ] )
-                    && $found = $this->find_registered_field( $name, $config[ $children ] )
-                ) {
-                    return $found;
-                }
-            }
-
-            foreach ( $config['tabs'] ?? [] as $tab ) {
-                if ( ! empty( $tab['fields'] ) 
-                    && $found = $this->find_registered_field( $name, $tab['fields'] )
-                ) {
-                    return $found;
-                }
-            }
-        }
-
-        return null;
     }
 
     /**
