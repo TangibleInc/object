@@ -2132,6 +2132,234 @@ class DataView_TestCase extends \WP_UnitTestCase {
 
     /**
      * ==========================================================================
+     * TangibleFieldsRenderer Conditional Visibility Tests
+     * ==========================================================================
+     */
+
+    /**
+     * @dataProvider condition_provider
+     */
+    public function test_renderer_forwards_condition(
+        array $field_configs,
+        callable $build_layout,
+        string $lookup,
+        array $expected
+    ): void {
+        if ( ! function_exists( 'tangible_fields' ) ) {
+            $this->markTestSkipped( 'Tangible Fields framework is not loaded.' );
+        }
+
+        $dataset = new DataSet();
+        foreach ( array_keys( $field_configs ) as $slug ) {
+            $dataset->add_string( $slug );
+        }
+
+        $layout = new Layout( $dataset );
+        $build_layout( $layout );
+
+        $renderer = new \Tangible\Renderer\TangibleFieldsRenderer();
+        $renderer->set_field_configs( $field_configs );
+
+        $renderer->render_editor( $layout, [] );
+
+        $config = $this->find_registered_field( $lookup );
+        $this->assertNotNull( $config, "Field '{$lookup}' should be registered with Tangible Fields" );
+        $this->assertEquals( $expected, $config['condition'] );
+    }
+
+    public function condition_provider(): array {
+        $condition = [
+            'action'    => 'show',
+            'condition' => [ 'condition_flag' => [ '_eq' => 'true' ] ],
+        ];
+
+        // Use same subfield for every repeater case
+        $sub_fields = [
+            [ 'name' => 'enabled', 'type' => 'boolean' ],
+            [ 'name' => 'amount', 'type' => 'integer', 'condition' => $condition ],
+        ];
+
+        $in_section = fn( $layout, $slug ) => (
+            $layout->section(
+                'General',
+                fn( $section ) => $section->field( $slug )
+            )
+        );
+        $in_sidebar = fn( $layout, $slug ) => (
+            $layout->sidebar(
+                fn( $sidebar ) => $sidebar->field( $slug )
+            )
+        );
+
+        /**
+         * Each case is:
+         * - field_configs  => configs registered on the renderer
+         * - build_layout   => places the field(s) in the layout
+         * - lookup         => field name to find in the registered tree
+         * - expected       => condition expected on that field (empty array when none set)
+         */
+        return [
+
+            'field forwards condition' => [
+                [
+                    'condition_field' => [
+                        'type'      => 'string',
+                        'condition' => $condition
+                    ]
+                ],
+                fn( $layout ) => $in_section( $layout, 'condition_field' ),
+                'condition_field',
+                $condition,
+            ],
+
+            'field absent defaults to empty' => [
+                [
+                    'condition_field' => [
+                        'type' => 'string'
+                    ]
+                ],
+                fn( $layout ) => $in_section( $layout, 'condition_field' ),
+                'condition_field',
+                [],
+            ],
+
+            'field in tab' => [
+                [
+                    'condition_field' => [
+                        'type'      => 'string',
+                        'condition' => $condition
+                    ]
+                ],
+                fn( $layout ) => $layout->tabs(
+                    fn( $tabs ) => $tabs->tab(
+                        'Main',
+                        fn( $tab ) => $tab->field( 'condition_field' )
+                    )
+                ),
+                'condition_field',
+                $condition,
+            ],
+
+            'field in nested section' => [
+                [
+                    'condition_field' => [
+                        'type'      => 'string',
+                        'condition' => $condition
+                    ]
+                ],
+                fn( $layout ) => $layout->section(
+                    'Outer',
+                    fn( $section ) => $section->section(
+                        'Inner',
+                        fn( $inner ) => $inner->field( 'condition_field' )
+                    )
+                ),
+                'condition_field',
+                $condition,
+            ],
+
+            'field in sidebar' => [
+                [
+                    'condition_field' => [
+                        'type'      => 'string',
+                        'condition' => $condition
+                    ]
+                ],
+                fn( $layout ) => $in_sidebar( $layout, 'condition_field' ),
+                'condition_field',
+                $condition,
+            ],
+
+            'repeater forwards condition' => [
+                [
+                    'condition_rows' => [
+                        'type'       => 'repeater',
+                        'sub_fields' => $sub_fields,
+                        'condition'  => $condition
+                    ]
+                ],
+                fn( $layout ) => $in_section( $layout, 'condition_rows' ),
+                'condition_rows',
+                $condition,
+            ],
+
+            'repeater in sidebar forwards condition' => [
+                [
+                    'condition_rows' => [
+                        'type'       => 'repeater',
+                        'sub_fields' => $sub_fields,
+                        'condition'  => $condition
+                    ]
+                ],
+                fn( $layout ) => $in_sidebar( $layout, 'condition_rows' ),
+                'condition_rows',
+                $condition,
+            ],
+
+            'repeater sub-field forwards condition' => [
+                [
+                    'condition_rows' => [
+                        'type'       => 'repeater',
+                        'sub_fields' => $sub_fields
+                    ]
+                ],
+                fn( $layout ) => $in_section( $layout, 'condition_rows' ),
+                'amount',
+                $condition,
+            ],
+
+            'repeater sub-field absent defaults to empty' => [
+                [
+                    'condition_rows' => [
+                        'type'       => 'repeater',
+                        'sub_fields' => $sub_fields
+                    ]
+                ],
+                fn( $layout ) => $in_section( $layout, 'condition_rows' ),
+                'enabled',
+                [],
+            ],
+        ];
+    }
+
+    /**
+     * Find a field config by name anywhere in the registered fields tree
+     * (top-level fields, section/tab children, repeater sub-fields).
+     *
+     * The root call omits $configs; recursion passes the subtree to search.
+     */
+    private function find_registered_field( string $name, ?array $configs = null ): ?array {
+        foreach ( $configs ?? tangible_fields()->registered_fields as $config ) {
+            if ( ! is_array( $config ) ) {
+                continue;
+            }
+
+            if ( ( $config['name'] ?? null ) === $name ) {
+                return $config;
+            }
+
+            foreach ( [ 'fields', 'sub_fields' ] as $children ) {
+                if ( ! empty( $config[ $children ] ) && is_array( $config[ $children ] )
+                    && $found = $this->find_registered_field( $name, $config[ $children ] )
+                ) {
+                    return $found;
+                }
+            }
+
+            foreach ( $config['tabs'] ?? [] as $tab ) {
+                if ( ! empty( $tab['fields'] ) 
+                    && $found = $this->find_registered_field( $name, $tab['fields'] )
+                ) {
+                    return $found;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * ==========================================================================
      * DataView with TangibleFieldsRenderer Tests
      * ==========================================================================
      */

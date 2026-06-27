@@ -426,6 +426,7 @@ class TangibleFieldsRenderer implements Renderer {
             'label'       => $config['label'] ?? ucfirst( str_replace( '_', ' ', $name ) ),
             'description' => $config['description'] ?? '',
             'placeholder' => $config['placeholder'] ?? '',
+            'condition'   => $config['condition'] ?? [],
         ];
 
         $args = $this->add_type_specific_options( $args, $type, $field, $config );
