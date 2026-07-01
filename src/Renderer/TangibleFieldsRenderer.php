@@ -326,105 +326,10 @@ class TangibleFieldsRenderer implements Renderer {
      * @return string The rendered HTML.
      */
     protected function render_field( array $field ): string {
-        $slug   = $field['slug'];
-        $type   = $this->get_field_type( $slug );
-        $value  = $this->data[ $slug ] ?? $this->get_default_value( $slug );
-        $config = $this->field_configs[ $slug ] ?? [];
-
-        if ( $type === 'repeater' ) {
-            return $this->render_repeater_field( $field, $value, $config );
-        }
-
-        return $this->render_simple_field( $field, $type, $value );
-    }
-
-    /**
-     * Render a simple (non-repeater) field.
-     *
-     * @param array  $field The field structure.
-     * @param string $type  The DataView field type.
-     * @param mixed  $value The field value.
-     * @return string The rendered HTML.
-     */
-    protected function render_simple_field( array $field, string $type, mixed $value ): string {
-        $fields         = tangible_fields();
-        $slug           = $field['slug'];
-        $tf_type        = $this->get_tangible_fields_type( $type );
-        $config         = $this->field_configs[ $slug ] ?? [];
-        $label          = $config['label'] ?? $field['label'] ?? ucfirst( str_replace( '_', ' ', $slug ) );
-
-        $field_args = [
-            'type'        => $tf_type,
-            'name'        => $slug,
-            'label'       => $label,
-            'value'       => $this->format_value_for_field( $value, $type ),
-            'description' => $field['help'] ?? $config['description'] ?? '',
-            'placeholder' => $field['placeholder'] ?? $config['placeholder'] ?? '',
-            'condition'   => $config['condition'] ?? [],
-        ];
-
-        // Add type-specific options.
-        $field_args = $this->add_type_specific_options( $field_args, $type, $field, $config );
-
-        // Handle readonly.
-        if ( ! empty( $field['readonly'] ) ) {
-            $field_args['read_only'] = true;
-        }
-
-        return $fields->render_field( $slug, $field_args );
-    }
-
-    /**
-     * Render a repeater field.
-     *
-     * @param array $field  The field structure.
-     * @param mixed $value  The field value (JSON string or array).
-     * @param array $config The field configuration.
-     * @return string The rendered HTML.
-     */
-    protected function render_repeater_field( array $field, mixed $value, array $config ): string {
-        $fields     = tangible_fields();
-        $slug       = $field['slug'];
-        $label      = $config['label'] ?? $field['label'] ?? ucfirst( str_replace( '_', ' ', $slug ) );
-        $sub_fields = $this->map_sub_fields( $config['sub_fields'] ?? [] );
-
-        // Ensure value is a JSON string.
-        if ( is_array( $value ) ) {
-            $value = wp_json_encode( $value );
-        } elseif ( empty( $value ) ) {
-            // Use default value if provided.
-            $default = $config['default'] ?? [];
-            $value   = wp_json_encode( $default );
-        }
-
-        $field_args = [
-            'type'       => 'repeater',
-            'name'       => $slug,
-            'label'      => $label,
-            'value'      => $value,
-            'sub_fields' => $sub_fields,
-            'layout'     => $config['layout'] ?? 'table',
-            'condition'  => $config['condition'] ?? [],
-        ];
-
-        // Optional repeater settings.
-        if ( isset( $config['max_rows'] ) ) {
-            $field_args['maxlength'] = $config['max_rows'];
-        }
-
-        if ( isset( $config['min_rows'] ) ) {
-            $field_args['minlength'] = $config['min_rows'];
-        }
-
-        if ( isset( $config['button_label'] ) ) {
-            $field_args['new_item'] = $config['button_label'];
-        }
-
-        if ( isset( $config['description'] ) ) {
-            $field_args['description'] = $config['description'];
-        }
-
-        return $fields->render_field( $slug, $field_args );
+        return tangible_fields()->render_field(
+            $field['slug'],
+            $this->build_field_config( $field )
+        );
     }
 
     /**
@@ -434,47 +339,26 @@ class TangibleFieldsRenderer implements Renderer {
      * @return array Tangible Fields sub-field configs.
      */
     protected function map_sub_fields( array $sub_fields ): array {
-        $mapped = [];
+        return array_map(
+            function ( array $sub_field ): array {
+                $type = $sub_field['type'] ?? 'string';
 
-        foreach ( $sub_fields as $sub_field ) {
-            $type    = $sub_field['type'] ?? 'string';
-            $tf_type = $this->sub_field_type_map[ $type ] ?? 'text';
-
-            $mapped_field = [
-                'type'      => $tf_type,
-                'name'      => $sub_field['name'],
-                'label'     => $sub_field['label'] ?? ucfirst( str_replace( '_', ' ', $sub_field['name'] ) ),
-                'condition' => $sub_field['condition'] ?? [],
-            ];
-
-            // Add optional properties.
-            if ( isset( $sub_field['placeholder'] ) ) {
-                $mapped_field['placeholder'] = $sub_field['placeholder'];
-            }
-
-            if ( isset( $sub_field['description'] ) ) {
-                $mapped_field['description'] = $sub_field['description'];
-            }
-
-            // Type-specific options.
-            if ( $tf_type === 'number' ) {
-                if ( isset( $sub_field['min'] ) ) {
-                    $mapped_field['min'] = $sub_field['min'];
+                if ( ! isset( $this->sub_field_type_map[ $type ] ) ) {
+                    throw new \InvalidArgumentException( sprintf(
+                        'Unsupported repeater sub-field type "%s" for "%s".',
+                        $type,
+                        $sub_field['name'] ?? ''
+                    ) );
                 }
-                if ( isset( $sub_field['max'] ) ) {
-                    $mapped_field['max'] = $sub_field['max'];
-                }
-            }
 
-            if ( $tf_type === 'switch' ) {
-                $mapped_field['value_on']  = true;
-                $mapped_field['value_off'] = false;
-            }
-
-            $mapped[] = $mapped_field;
-        }
-
-        return $mapped;
+                return $this->format_field_args(
+                    $type,
+                    $sub_field['name'],
+                    $sub_field
+                );
+            },
+            $sub_fields
+        );
     }
 
     /**
@@ -486,57 +370,72 @@ class TangibleFieldsRenderer implements Renderer {
     protected function build_field_config( array $field ): array {
         $slug   = $field['slug'];
         $type   = $this->get_field_type( $slug );
+        $config = $this->resolve_field_config( $field );
         $value  = $this->data[ $slug ] ?? $this->get_default_value( $slug );
-        $config = $this->field_configs[ $slug ] ?? [];
-        $label  = $config['label'] ?? $field['label'] ?? ucfirst( str_replace( '_', ' ', $slug ) );
 
-        if ( $type === 'repeater' ) {
-            $sub_fields = $this->map_sub_fields( $config['sub_fields'] ?? [] );
+        $args = $this->format_field_args( $type, $slug, $config, $field );
 
-            if ( is_array( $value ) ) {
-                $value = wp_json_encode( $value );
-            } elseif ( empty( $value ) ) {
-                $default = $config['default'] ?? [];
-                $value   = wp_json_encode( $default );
-            }
+        $args['value'] = $type === 'repeater'
+            ? $this->format_repeater_value( $value, $config )
+            : $this->format_value_for_field( $value, $type );
 
-            $field_config = [
-                'type'       => 'repeater',
-                'name'       => $slug,
-                'label'      => $label,
-                'value'      => $value,
-                'sub_fields' => $sub_fields,
-                'layout'     => $config['layout'] ?? 'table',
-                'condition'  => $config['condition'] ?? [],
-            ];
+        return $args;
+    }
 
-            if ( isset( $config['max_rows'] ) ) {
-                $field_config['maxlength'] = $config['max_rows'];
-            }
+    /**
+     * Merge a Layout field with its registered config into one config array.
+     *
+     * The Layout structure and the registered field config both carry display
+     * keys (label, help/description, placeholder, readonly); this resolves their
+     * precedence so format_field_args has a single source to read from.
+     *
+     * @param array $field The field structure from Layout.
+     * @return array The merged config.
+     */
+    protected function resolve_field_config( array $field ): array {
+        $config = $this->field_configs[ $field['slug'] ] ?? [];
 
-            return $field_config;
-        }
+        return array_merge( $config, [
+            'label'       => $config['label'] ?? $field['label'] ?? null,
+            'description' => $field['help'] ?? $config['description'] ?? null,
+            'placeholder' => $field['placeholder'] ?? $config['placeholder'] ?? null,
+            'readonly'    => $field['readonly'] ?? $config['readonly'] ?? false,
+        ] );
+    }
 
-        $tf_type = $this->get_tangible_fields_type( $type );
-
-        $field_config = [
-            'type'        => $tf_type,
-            'name'        => $slug,
-            'label'       => $label,
-            'value'       => $this->format_value_for_field( $value, $type ),
-            'description' => $field['help'] ?? $config['description'] ?? '',
-            'placeholder' => $field['placeholder'] ?? $config['placeholder'] ?? '',
+    /**
+     * Build the field-definition args for a field or repeater sub-field, without its value.
+     *
+     * The caller attaches the value, since repeater sub-fields have none.
+     *
+     * @param string $type   The DataView field type.
+     * @param string $name   The field name.
+     * @param array  $config The field config / options source.
+     * @param array  $field  The Layout field structure (empty for sub-fields).
+     * @return array The Tangible Fields args.
+     */
+    protected function format_field_args(
+        string $type,
+        string $name,
+        array $config,
+        array $field = []
+    ): array {
+        $args = [
+            'type'        => $this->get_tangible_fields_type( $type ),
+            'name'        => $name,
+            'label'       => $config['label'] ?? ucfirst( str_replace( '_', ' ', $name ) ),
+            'description' => $config['description'] ?? '',
+            'placeholder' => $config['placeholder'] ?? '',
             'condition'   => $config['condition'] ?? [],
         ];
 
-        // Add type-specific options.
-        $field_config = $this->add_type_specific_options( $field_config, $type, $field, $config );
+        $args = $this->add_type_specific_options( $args, $type, $field, $config );
 
-        if ( ! empty( $field['readonly'] ) ) {
-            $field_config['read_only'] = true;
+        if ( ! empty( $config['readonly'] ) ) {
+            $args['read_only'] = true;
         }
 
-        return $field_config;
+        return $args;
     }
 
     /**
@@ -577,6 +476,21 @@ class TangibleFieldsRenderer implements Renderer {
                     $field_args['rows'] = $config['rows'];
                 }
                 break;
+
+            case 'repeater':
+                $field_args['sub_fields'] = $this->map_sub_fields( $config['sub_fields'] ?? [] );
+                $field_args['layout']     = $config['layout'] ?? 'table';
+
+                if ( isset( $config['max_rows'] ) ) {
+                    $field_args['maxlength'] = $config['max_rows'];
+                }
+                if ( isset( $config['min_rows'] ) ) {
+                    $field_args['minlength'] = $config['min_rows'];
+                }
+                if ( isset( $config['button_label'] ) ) {
+                    $field_args['new_item'] = $config['button_label'];
+                }
+                break;
         }
 
         return $field_args;
@@ -599,6 +513,24 @@ class TangibleFieldsRenderer implements Renderer {
             'integer' => (int) $value,
             default   => $value,
         };
+    }
+
+    /**
+     * Format a repeater value as the JSON string the field expects.
+     *
+     * @param mixed $value  The raw value.
+     * @param array $config The field configuration.
+     * @return string The JSON-encoded value.
+     */
+    protected function format_repeater_value( mixed $value, array $config ): string {
+        if ( is_array( $value ) ) {
+            return wp_json_encode( $value );
+        }
+        if ( empty( $value ) ) {
+            return wp_json_encode( $config['default'] ?? [] );
+        }
+
+        return (string) $value;
     }
 
     /**
