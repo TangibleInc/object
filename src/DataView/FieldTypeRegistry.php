@@ -209,7 +209,7 @@ class FieldTypeRegistry {
     public function sanitize_repeater( mixed $value ): string {
         // Handle JSON string input (from Tangible Fields hidden input).
         if ( is_string( $value ) ) {
-            $decoded = json_decode( stripslashes( $value ), true );
+            $decoded = json_decode( $value, true );
             if ( json_last_error() === JSON_ERROR_NONE && is_array( $decoded ) ) {
                 return wp_json_encode( $this->sanitize_repeater_rows( $decoded ) );
             }

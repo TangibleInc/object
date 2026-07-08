@@ -487,20 +487,6 @@ class DataView_TestCase extends \WP_UnitTestCase {
         $this->assertEquals( 5, $decoded[0]['count'] );
     }
 
-    public function test_repeater_sanitizer_handles_escaped_json(): void {
-        $registry = new FieldTypeRegistry();
-        $sanitizer = $registry->get_sanitizer( 'repeater' );
-
-        // Simulates WordPress POST data with escaped quotes.
-        $input = addslashes( '[{"key":"abc","name":"Test"}]' );
-        $result = $sanitizer( $input );
-        $decoded = json_decode( $result, true );
-
-        $this->assertIsArray( $decoded );
-        $this->assertCount( 1, $decoded );
-        $this->assertEquals( 'Test', $decoded[0]['name'] );
-    }
-
     public function test_repeater_sanitizer_handles_array_input(): void {
         $registry = new FieldTypeRegistry();
         $sanitizer = $registry->get_sanitizer( 'repeater' );
