@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/TangibleInc/object/compare/v1.0.0...v1.0.1) (2026-07-16)
+
+
+### Bug Fixes
+
+* incorrect slashes in some json_encoded values for CustomPostTypeStorage ([#54](https://github.com/TangibleInc/object/issues/54)) ([c4742a3](https://github.com/TangibleInc/object/commit/c4742a3b6acb86aa3cd15ef7960ce85cbcd26206))
+
 ## [1.0.0](https://github.com/TangibleInc/object/compare/v0.0.2...v1.0.0) (2026-07-16)
 
 
