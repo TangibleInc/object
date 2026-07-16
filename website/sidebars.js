@@ -62,6 +62,13 @@ const sidebars = {
         'examples/invoice-manager',
       ],
     },
+    {
+      type: 'category',
+      label: 'Development',
+      items: [
+        'development/releases',
+      ],
+    },
     'api-reference',
   ],
 };

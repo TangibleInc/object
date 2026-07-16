@@ -2,7 +2,9 @@
 /**
  * Plugin Name: Tangible Object
  * Description: A WordPress tool suite for building data-driven interfaces with a clean extensible architecture.
+ * x-release-please-start-version
  * Version: 0.0.2
+ * x-release-please-end-version
  * GitHub URI: TangibleInc/object
  */
 
