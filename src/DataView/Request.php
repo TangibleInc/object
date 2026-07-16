@@ -82,4 +82,11 @@ class Request {
     public function is_post(): bool {
         return $this->rest_request->is_method( 'POST' );
     }
+
+    /**
+     * Get the POST body parameters (unslashed)
+     */
+    public function get_body_params(): array {
+        return $this->rest_request->get_body_params();
+    }
 }

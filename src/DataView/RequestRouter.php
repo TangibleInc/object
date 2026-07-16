@@ -10,7 +10,6 @@ use Tangible\Renderer\Renderer;
 use Tangible\Renderer\HtmlRenderer;
 use Tangible\RequestHandler\PluralHandler;
 use Tangible\RequestHandler\SingularHandler;
-use Tangible\RequestHandler\Result;
 
 /**
  * Handles request routing and rendering for DataView admin pages.
@@ -441,15 +440,14 @@ class RequestRouter {
     protected function extract_post_data(): array {
         $data = [];
 
-        // phpcs:ignore WordPress.Security.NonceVerification.Missing
-        $nested = $_POST[ $this->config->slug ] ?? [];
+        $params = $this->request->get_body_params();
+        $nested = $params[ $this->config->slug ] ?? [];
 
         foreach ( $this->config->field_configs as $name => $config ) {
             $type = $config['type'];
 
             // Check nested array first (singular/settings mode), then flat POST
-            // phpcs:ignore WordPress.Security.NonceVerification.Missing
-            $has_value = isset( $nested[ $name ] ) || isset( $_POST[ $name ] );
+            $has_value = isset( $nested[ $name ] ) || isset( $params[ $name ] );
 
             if ( ! $has_value ) {
                 // Handle missing boolean fields (unchecked checkboxes).
@@ -464,8 +462,7 @@ class RequestRouter {
             }
 
             $sanitizer = $this->registry->get_sanitizer( $type );
-            // phpcs:ignore WordPress.Security.NonceVerification.Missing
-            $raw_value = $nested[ $name ] ?? $_POST[ $name ];
+            $raw_value = $nested[ $name ] ?? $params[ $name ];
             $data[ $name ] = $sanitizer( $raw_value );
         }
 

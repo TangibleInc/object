@@ -21,14 +21,14 @@ class CustomPostTypeStorage implements PluralStorage {
         $post_id = wp_insert_post( [
             'post_type'   => $this->slug,
             'post_status' => 'publish',
-            'post_title'  => $data['title'] ?? '',
+            'post_title'  => $this->prepare_data( $data['title'] ?? '' ),
         ], true );
 
         if ( is_wp_error( $post_id ) ) {
             return 0;
         }
 
-        update_post_meta( $post_id, self::META_KEY, wp_json_encode( $data ) );
+        update_post_meta( $post_id, self::META_KEY, $this->prepare_data( $data ) );
 
         return $post_id;
     }
@@ -42,11 +42,11 @@ class CustomPostTypeStorage implements PluralStorage {
         if ( isset( $data['title'] ) ) {
             wp_update_post( [
                 'ID'         => $id,
-                'post_title' => $data['title'],
+                'post_title' => $this->prepare_data( $data['title'] ),
             ] );
         }
 
-        update_post_meta( $id, self::META_KEY, wp_json_encode( $data ) );
+        update_post_meta( $id, self::META_KEY, $this->prepare_data( $data ) );
     }
 
     public function delete( int $id ): void {
@@ -88,5 +88,20 @@ class CustomPostTypeStorage implements PluralStorage {
         }
 
         return $results;
+    }
+
+    /**
+     * We expect $value to be unslashed, as it will either come
+     * from Request::get_body_params() or be manually set
+     *
+     * Post and meta functions both expect slashed data:
+     * @see https://developer.wordpress.org/reference/hooks/wp_insert_post_data/
+     * @see https://developer.wordpress.org/reference/functions/update_post_meta/
+     */
+    protected function prepare_data( string|array $value ): string {
+        if ( is_array( $value ) ) {
+            $value = wp_json_encode( $value );
+        }
+        return wp_slash( $value );
     }
 }
