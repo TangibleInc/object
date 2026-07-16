@@ -70,6 +70,52 @@ With squash merges the PR body becomes the commit body, so a stray
 `BREAKING CHANGE:` line in a PR description will also trigger a major bump —
 keep descriptions clean and put the intent in the title.
 
+## Cutting a specific version (e.g. the first `1.0.0`)
+
+Normally you don't pick the version — release-please computes it from the
+commits. To force a specific version, add a `Release-As:` footer to the commit
+that lands on `main`.
+
+Two things to know about our setup:
+
+- `Release-As` is read from the commit **body**, not the subject. Appending it
+  to the PR title does **not** work (and would break the Conventional Commit
+  title and fail the lint).
+- We squash-merge with **PR title only**, so the PR *description* does not become
+  the commit body either. You add the footer at merge time instead.
+
+The steps:
+
+1. Open a trivial PR — for example titled `chore: release 1.0.0`.
+2. When squash-merging, **edit the commit message in GitHub's merge dialog** and
+   add the footer to the body (the "PR title only" default only prefills the
+   message — the description box is still editable):
+
+   ```
+   chore: release 1.0.0
+
+   Release-As: 1.0.0
+   ```
+
+3. release-please opens or updates its release PR pinned to `1.0.0`. Merge that
+   to tag `v1.0.0`.
+
+A maintainer who can push directly to `main` can do the same with an empty
+commit:
+
+```bash
+git commit --allow-empty -m "chore: release 1.0.0" -m "Release-As: 1.0.0"
+git push origin main
+```
+
+:::warning
+`Release-As` is one-shot — it only affects the release triggered by that commit,
+so don't leave it in later merges. And do **not** hand-edit
+`.release-please-manifest.json` to force a version: it records the *last
+released* version, so setting it to `1.0.0` makes release-please think `1.0.0`
+already shipped and it won't cut the release.
+:::
+
 ## Version constraints for consumers
 
 Once published, downstream projects install a released version rather than
