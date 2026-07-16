@@ -50,11 +50,12 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
-          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.json') }}
           restore-keys: ${{ runner.os }}-composer-
 
       - name: Install Composer dependencies
-        run: composer install --prefer-dist --no-progress
+        # No composer.lock is committed (this is a library), so resolve fresh.
+        run: composer update --prefer-dist --no-progress
 
       - name: Checkout WordPress develop
         uses: actions/checkout@v7

@@ -3,3 +3,7 @@ vendor
 node_modules
 .docusaurus
 build
+
+# Composer lock is not committed for this library — consumers ignore it
+# and it only masks range breaks in CI.
+composer.lock
