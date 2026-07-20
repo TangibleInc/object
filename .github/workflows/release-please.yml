@@ -18,7 +18,7 @@ jobs:
       # squash-merged PRs, updates CHANGELOG.md and the plugin.php version header,
       # and on merge creates the git tag + GitHub Release. Packagist picks up the
       # new tag via the existing GitHub webhook.
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@v5
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
