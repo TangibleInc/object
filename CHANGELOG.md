@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/TangibleInc/object/compare/v1.0.1...v1.1.0) (2026-08-14)
+
+
+### Features
+
+* ListQuery-driven listing for plural DataViews ([#66](https://github.com/TangibleInc/object/issues/66)) ([2f900fd](https://github.com/TangibleInc/object/commit/2f900fda63ea0f76f680ec771520eb586ecce8c8))
+
 ## [1.0.1](https://github.com/TangibleInc/object/compare/v1.0.0...v1.0.1) (2026-07-16)
 
 
