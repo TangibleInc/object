@@ -570,6 +570,53 @@ class ListQuery_TestCase extends \WP_UnitTestCase {
         $this->assertStringContainsString( 'order=desc', $html );
     }
 
+    /**
+     * ==========================================================================
+     * UrlBuilder: parented menu pages
+     * ==========================================================================
+     */
+
+    public function test_url_builder_defaults_to_admin_php(): void {
+        $builder = new \Tangible\DataView\UrlBuilder( 'my_page' );
+
+        $this->assertStringContainsString( 'admin.php', $builder->url( 'list' ) );
+        $this->assertSame( [ 'page' => 'my_page' ], $builder->base_params() );
+    }
+
+    public function test_url_builder_builds_on_the_parent_file(): void {
+        $builder = new \Tangible\DataView\UrlBuilder( 'my_page', 'edit.php?post_type=book' );
+
+        $url = $builder->url( 'list' );
+        $this->assertStringContainsString( 'edit.php', $url );
+        $this->assertStringContainsString( 'post_type=book', $url );
+        $this->assertStringContainsString( 'page=my_page', $url );
+        $this->assertStringNotContainsString( 'admin.php', $url );
+
+        $this->assertSame(
+            [ 'post_type' => 'book', 'page' => 'my_page' ],
+            $builder->base_params()
+        );
+    }
+
+    public function test_url_builder_treats_plugin_slug_parent_as_top_level(): void {
+        // A parent that is another plugin page's slug (no .php) keeps the
+        // admin.php base — matching WordPress's own submenu URL rule.
+        $builder = new \Tangible\DataView\UrlBuilder( 'my_page', 'some-plugin-menu' );
+
+        $this->assertStringContainsString( 'admin.php', $builder->url( 'list' ) );
+        $this->assertSame( [ 'page' => 'my_page' ], $builder->base_params() );
+    }
+
+    public function test_router_list_form_carries_parent_params_as_hidden_inputs(): void {
+        $html = $this->render_list_output( [
+            'ui'   => [ 'parent' => 'edit.php?post_type=book' ],
+            'list' => [ 'searchable' => [ 'title' ] ],
+        ] );
+
+        $this->assertStringContainsString( 'name="post_type" value="book"', $html );
+        $this->assertStringContainsString( 'name="page"', $html );
+    }
+
     public function test_router_list_ignores_undeclared_orderby(): void {
         $html = $this->render_list_output( [], [ 'orderby' => 'title', 'order' => 'asc' ] );
 

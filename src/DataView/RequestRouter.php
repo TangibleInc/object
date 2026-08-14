@@ -324,7 +324,12 @@ class RequestRouter {
         }
 
         echo '<form method="get">';
-        echo '<input type="hidden" name="page" value="' . esc_attr( $this->config->get_menu_page() ) . '">';
+        // Everything that identifies the page must ride the GET submit —
+        // for a parented page that includes the parent file's parameters
+        // (e.g. post_type for a post-type submenu), not just the slug.
+        foreach ( $this->url_builder->base_params() as $name => $value ) {
+            echo '<input type="hidden" name="' . esc_attr( $name ) . '" value="' . esc_attr( $value ) . '">';
+        }
         if ( $query->orderby !== '' ) {
             echo '<input type="hidden" name="orderby" value="' . esc_attr( $query->orderby ) . '">';
             echo '<input type="hidden" name="order" value="' . esc_attr( $query->order ) . '">';
