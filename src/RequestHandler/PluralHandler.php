@@ -8,6 +8,7 @@
 namespace Tangible\RequestHandler;
 
 use Tangible\DataObject\DataSet;
+use Tangible\DataObject\ListQuery;
 use Tangible\DataObject\PluralObject;
 use Tangible\DataObject\PluralObject\Entity;
 
@@ -105,6 +106,46 @@ class PluralHandler extends BaseHandler {
         $entities = $this->object->all();
 
         return $result->set_entities( $entities )
+            ->set_is_success( true );
+    }
+
+    /**
+     * List the entities matching a query: filtered, ordered, paginated.
+     *
+     * The result carries the page of entities plus the unpaginated total
+     * (Result::get_total()).
+     *
+     * With a PluralObject the query executes through it (natively when
+     * the storage supports it). Handlers that override list() without a
+     * PluralObject — adapter wrappers around external data sources —
+     * inherit a fallback that applies the query in memory over their
+     * full list(); such handlers should override query() too when their
+     * source can execute it natively.
+     *
+     * @param ListQuery $query The list query.
+     * @return Result Success with the matching page of entities and total.
+     */
+    public function query( ListQuery $query ): Result {
+        $result = new Result();
+
+        if ( isset( $this->object ) ) {
+            return $result
+                ->set_entities( $this->object->query( $query ) )
+                ->set_total( $this->object->count( $query ) )
+                ->set_is_success( true );
+        }
+
+        $list = $this->list();
+        if ( ! $list->is_success() ) {
+            return $list;
+        }
+
+        $entities = $list->get_entities();
+        $accessor = static fn( Entity $entity ): array => $entity->get_data() + [ 'id' => $entity->get_id() ];
+
+        return $result
+            ->set_entities( $query->apply( $entities, $accessor ) )
+            ->set_total( $query->count_matching( $entities, $accessor ) )
             ->set_is_success( true );
     }
 

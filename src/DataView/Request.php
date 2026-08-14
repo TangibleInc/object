@@ -70,6 +70,17 @@ class Request {
     }
 
     /**
+     * Get an arbitrary request parameter.
+     *
+     * @param string $name Parameter name.
+     * @param mixed $default Value to return when the parameter is absent.
+     * @return mixed Parameter value or default.
+     */
+    public function get_param( string $name, mixed $default = null ): mixed {
+        return $this->rest_request->get_param( $name ) ?? $default;
+    }
+
+    /**
      * Get the WordPress nonce from the current request.
      */
     public function get_nonce( ?string $name = '_wpnonce' ): string {

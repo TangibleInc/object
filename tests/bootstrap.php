@@ -14,6 +14,16 @@ if ( ! $_WORDPRESS_DEVELOP_DIR = getenv( 'WORDPRESS_DEVELOP_DIR' ) ) {
 }
 
 /**
+ * Optional: point the WP test suite at an alternative wp-tests-config.php
+ * (e.g. one with a scratch database) without editing the wordpress-develop
+ * checkout. The WP bootstrap only honors the constant, so lift the
+ * environment variable into it.
+ */
+if ( ! defined( 'WP_TESTS_CONFIG_FILE_PATH' ) && ( $_WP_TESTS_CONFIG = getenv( 'WP_TESTS_CONFIG_FILE_PATH' ) ) ) {
+  define( 'WP_TESTS_CONFIG_FILE_PATH', $_WP_TESTS_CONFIG );
+}
+
+/**
  * Directory of PHPUnit test files
  *
  * @see https://developer.wordpress.org/block-editor/reference-guides/packages/packages-env/#using-included-wordpress-phpunit-test-files

@@ -81,7 +81,10 @@ class DataView {
         $this->build_object();
         $this->build_handler();
 
-        $this->url_builder = new UrlBuilder( $this->config->get_menu_page() );
+        $this->url_builder = new UrlBuilder(
+            $this->config->get_menu_page(),
+            $this->config->get_parent_menu()
+        );
         $this->router      = new RequestRouter(
             $this->config,
             $this->dataset,

@@ -62,6 +62,14 @@ class Result {
     protected array $data = [];
 
     /**
+     * Total number of matching entities for paginated list operations,
+     * ignoring pagination. Null when the operation was not a query.
+     *
+     * @var int|null
+     */
+    protected ?int $total = null;
+
+    /**
      * Check if the operation resulted in an error.
      *
      * @return bool True if the operation failed.
@@ -172,6 +180,26 @@ class Result {
             $this->errors,
             fn( $e ) => $e->get_field() === $field
         );
+    }
+
+    /**
+     * Set the total number of matching entities for a paginated query.
+     *
+     * @param int $total The unpaginated match count.
+     * @return Result The result instance for method chaining.
+     */
+    public function set_total( int $total ): Result {
+        $this->total = $total;
+        return $this;
+    }
+
+    /**
+     * Get the total number of matching entities for a paginated query.
+     *
+     * @return int|null The unpaginated match count, or null when not a query result.
+     */
+    public function get_total(): ?int {
+        return $this->total;
     }
 
     /**
