@@ -28,6 +28,22 @@ class DataViewConfig {
     public readonly bool $notices;
 
     /**
+     * List view configuration.
+     *
+     * Keys (all optional in the input config):
+     * - columns: fields shown as table columns (default: all fields)
+     * - sortable: fields whose column headers sort the list (default: none)
+     * - searchable: fields the search box matches against (default: none —
+     *   no search box is rendered)
+     * - filterable: fields exposed as filters; fields whose config declares
+     *   'options' render as dropdowns (default: none)
+     * - per_page: page size, 0 disables pagination (default: 20)
+     *
+     * @var array
+     */
+    public readonly array $list;
+
+    /**
      * Full field configurations including repeater sub-fields.
      *
      * Each entry is an array with at least 'type' key.
@@ -101,6 +117,17 @@ class DataViewConfig {
                 'position'   => null,
             ],
             $config['ui'] ?? []
+        );
+
+        $this->list = array_merge(
+            [
+                'columns'    => array_keys( $this->fields ),
+                'sortable'   => [],
+                'searchable' => [],
+                'filterable' => [],
+                'per_page'   => 20,
+            ],
+            $config['list'] ?? []
         );
 
         $this->validate();
@@ -266,6 +293,68 @@ class DataViewConfig {
                 sprintf( 'Invalid mode "%s". Must be one of: plural, singular.', $this->mode )
             );
         }
+
+        // 'id' is allowed alongside declared fields: entities always carry
+        // it and sorting by it is common.
+        $known = array_merge( [ 'id' ], array_keys( $this->fields ) );
+        foreach ( [ 'columns', 'sortable', 'searchable', 'filterable' ] as $key ) {
+            foreach ( $this->list[ $key ] as $field ) {
+                if ( ! in_array( $field, $known, true ) ) {
+                    throw new \InvalidArgumentException(
+                        sprintf( 'Unknown field "%s" in list.%s.', (string) $field, $key )
+                    );
+                }
+            }
+        }
+
+        if ( ! is_int( $this->list['per_page'] ) || $this->list['per_page'] < 0 ) {
+            throw new \InvalidArgumentException( 'list.per_page must be a non-negative integer.' );
+        }
+    }
+
+    /**
+     * Get the fields shown as list table columns.
+     *
+     * @return string[] Field names.
+     */
+    public function get_list_columns(): array {
+        return $this->list['columns'];
+    }
+
+    /**
+     * Get the fields whose list columns are sortable.
+     *
+     * @return string[] Field names.
+     */
+    public function get_sortable_fields(): array {
+        return $this->list['sortable'];
+    }
+
+    /**
+     * Get the fields the list search box matches against.
+     *
+     * @return string[] Field names.
+     */
+    public function get_searchable_fields(): array {
+        return $this->list['searchable'];
+    }
+
+    /**
+     * Get the fields exposed as list filters.
+     *
+     * @return string[] Field names.
+     */
+    public function get_filterable_fields(): array {
+        return $this->list['filterable'];
+    }
+
+    /**
+     * Get the list page size. 0 means unpaginated.
+     *
+     * @return int Items per page.
+     */
+    public function get_list_per_page(): int {
+        return $this->list['per_page'];
     }
 
     /**

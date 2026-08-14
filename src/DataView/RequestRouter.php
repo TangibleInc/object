@@ -3,6 +3,7 @@
 namespace Tangible\DataView;
 
 use Tangible\DataObject\DataSet;
+use Tangible\DataObject\ListQuery;
 use Tangible\EditorLayout\Layout;
 use Tangible\EditorLayout\Section;
 use Tangible\EditorLayout\Sidebar;
@@ -30,6 +31,17 @@ class RequestRouter {
 
     /** @var array Cached resolved labels. */
     protected array $resolved_labels = [];
+
+    /**
+     * The query the current list view is rendering.
+     *
+     * Set by render_list() before any list markup renders, so helpers —
+     * including render_list_table() overrides in subclasses — can read
+     * the active search/sort/page state without a signature change.
+     *
+     * @var ListQuery|null
+     */
+    protected ?ListQuery $current_list_query = null;
 
     public function __construct(
         DataViewConfig $config,
@@ -69,6 +81,8 @@ class RequestRouter {
             'add_new_item'    => sprintf( 'Add New %s', $singular ),
             'edit_item'       => sprintf( 'Edit %s', $singular ),
             'settings'        => sprintf( '%s Settings', $singular ),
+            'search_items'    => sprintf( 'Search %s', $plural ),
+            'not_found'       => 'No items found.',
             'item_created'    => 'Item created successfully.',
             'item_updated'    => 'Item updated successfully.',
             'item_deleted'    => 'Item deleted successfully.',
@@ -222,12 +236,51 @@ class RequestRouter {
     }
 
     /**
+     * Build the ListQuery for the current list request.
+     *
+     * Reads the WP-conventional list parameters (paged / orderby / order /
+     * s / filter_<field>) and validates them against the config's list
+     * declarations, so only declared-sortable fields can order the list
+     * and only declared-filterable fields can filter it.
+     *
+     * @return ListQuery The query for the current request.
+     */
+    protected function build_list_query(): ListQuery {
+        $orderby = sanitize_key( (string) $this->request->get_param( 'orderby', '' ) );
+        if ( ! in_array( $orderby, $this->config->get_sortable_fields(), true ) ) {
+            $orderby = '';
+        }
+
+        $filters = [];
+        foreach ( $this->config->get_filterable_fields() as $field ) {
+            $value = $this->request->get_param( 'filter_' . $field );
+            if ( $value !== null && $value !== '' ) {
+                $filters[ $field ] = sanitize_text_field( (string) $value );
+            }
+        }
+
+        return new ListQuery(
+            page: max( 1, (int) $this->request->get_param( 'paged', 1 ) ),
+            per_page: $this->config->get_list_per_page(),
+            orderby: $orderby,
+            order: strtolower( (string) $this->request->get_param( 'order', 'asc' ) ),
+            search: sanitize_text_field( (string) $this->request->get_param( 's', '' ) ),
+            search_fields: $this->config->get_searchable_fields(),
+            filters: $filters
+        );
+    }
+
+    /**
      * Render the list view.
      */
     protected function render_list(): void {
         /** @var PluralHandler $handler */
         $handler = $this->handler;
-        $result  = $handler->list();
+
+        $query                    = $this->build_list_query();
+        $this->current_list_query = $query;
+
+        $result = $handler->query( $query );
 
         $entities = [];
         foreach ( $result->get_entities() as $entity ) {
@@ -236,16 +289,200 @@ class RequestRouter {
             $entities[] = $data;
         }
 
+        $total = $result->get_total() ?? count( $entities );
+
         $this->render_page_header( $this->get_label( 'all_items' ), $this->url_builder->url( 'create' ) );
         $this->render_notices();
 
-        if ( empty( $entities ) ) {
-            echo '<p>No items found.</p>';
-        } else {
-            echo $this->render_list_table( $entities );
-        }
+        $this->render_list_controls( $query );
+
+        // The table always renders — headers (and their sort links) must
+        // survive an empty page, e.g. a search that matched nothing.
+        echo $this->render_list_table( $entities );
+        $this->render_pagination( $total, $query );
 
         $this->render_page_footer();
+
+        $this->current_list_query = null;
+    }
+
+    /**
+     * Render the search box and filter controls above the list, wrapped
+     * in a GET form that round-trips the page and sort state.
+     *
+     * Renders nothing when the config declares neither searchable nor
+     * filterable fields, keeping zero-config list pages unchanged.
+     *
+     * @param ListQuery $query The current list query.
+     */
+    protected function render_list_controls( ListQuery $query ): void {
+        $searchable = $this->config->get_searchable_fields();
+        $filterable = $this->config->get_filterable_fields();
+
+        if ( $searchable === [] && $filterable === [] ) {
+            return;
+        }
+
+        echo '<form method="get">';
+        echo '<input type="hidden" name="page" value="' . esc_attr( $this->config->get_menu_page() ) . '">';
+        if ( $query->orderby !== '' ) {
+            echo '<input type="hidden" name="orderby" value="' . esc_attr( $query->orderby ) . '">';
+            echo '<input type="hidden" name="order" value="' . esc_attr( $query->order ) . '">';
+        }
+
+        if ( $searchable !== [] ) {
+            $input_id = $this->config->get_menu_page() . '-search-input';
+            echo '<p class="search-box">';
+            echo '<label class="screen-reader-text" for="' . esc_attr( $input_id ) . '">' . esc_html( $this->get_label( 'search_items' ) ) . '</label>';
+            echo '<input type="search" id="' . esc_attr( $input_id ) . '" name="s" value="' . esc_attr( $query->search ) . '">';
+            echo '<input type="submit" class="button" value="' . esc_attr( $this->get_label( 'search_items' ) ) . '">';
+            echo '</p>';
+        }
+
+        if ( $filterable !== [] ) {
+            echo '<div class="alignleft actions">';
+            foreach ( $filterable as $field ) {
+                $this->render_list_filter( $field, $query->filters[ $field ] ?? '' );
+            }
+            echo '<input type="submit" class="button" value="Filter">';
+            echo '</div>';
+        }
+
+        echo '</form>';
+    }
+
+    /**
+     * Render a single filter control.
+     *
+     * Fields whose config declares 'options' (value => label) render as a
+     * dropdown with an "all" default; other filterable fields stay
+     * URL-driven only.
+     *
+     * @param string $field Field name.
+     * @param string $current Currently applied filter value.
+     */
+    protected function render_list_filter( string $field, string $current ): void {
+        $field_config = $this->config->get_field_config( $field );
+        $options      = $field_config['options'] ?? null;
+
+        if ( ! is_array( $options ) || $options === [] ) {
+            return;
+        }
+
+        $name  = 'filter_' . $field;
+        $label = ucfirst( str_replace( '_', ' ', $field ) );
+
+        echo '<label class="screen-reader-text" for="' . esc_attr( $name ) . '">' . esc_html( $label ) . '</label>';
+        echo '<select name="' . esc_attr( $name ) . '" id="' . esc_attr( $name ) . '">';
+        echo '<option value="">' . esc_html( sprintf( 'All %s', $this->get_label( 'plural' ) ) ) . '</option>';
+        foreach ( $options as $value => $option_label ) {
+            echo '<option value="' . esc_attr( (string) $value ) . '"' . selected( $current, (string) $value, false ) . '>'
+                . esc_html( (string) $option_label ) . '</option>';
+        }
+        echo '</select>';
+    }
+
+    /**
+     * Build a list URL carrying the current query state, with overrides.
+     *
+     * Pass null as an override value to drop that parameter.
+     *
+     * @param array $overrides Parameter overrides.
+     * @return string List URL.
+     */
+    protected function list_url( array $overrides = [] ): string {
+        $args  = [];
+        $query = $this->current_list_query;
+
+        if ( $query !== null ) {
+            if ( $query->search !== '' ) {
+                $args['s'] = $query->search;
+            }
+            if ( $query->orderby !== '' ) {
+                $args['orderby'] = $query->orderby;
+                $args['order']   = $query->order;
+            }
+            if ( $query->page > 1 ) {
+                $args['paged'] = $query->page;
+            }
+            foreach ( $query->filters as $field => $value ) {
+                $args[ 'filter_' . $field ] = $value;
+            }
+        }
+
+        foreach ( $overrides as $key => $value ) {
+            if ( $value === null ) {
+                unset( $args[ $key ] );
+            } else {
+                $args[ $key ] = $value;
+            }
+        }
+
+        return $this->url_builder->url( 'list', null, $args );
+    }
+
+    /**
+     * Render a list column header cell, as a sort link when the field is
+     * declared sortable.
+     *
+     * Uses core list-table classes (sortable / sorted, asc / desc) so
+     * wp-admin styles the indicators.
+     *
+     * @param string $field Field name.
+     * @return string Header cell HTML.
+     */
+    protected function render_column_header( string $field ): string {
+        $label = ucfirst( str_replace( '_', ' ', $field ) );
+
+        if ( ! in_array( $field, $this->config->get_sortable_fields(), true ) ) {
+            return '<th scope="col" class="manage-column">' . esc_html( $label ) . '</th>';
+        }
+
+        $query      = $this->current_list_query;
+        $is_current = $query !== null && $query->orderby === $field;
+        $next_order = $is_current && $query->order === 'asc' ? 'desc' : 'asc';
+        $class      = $is_current ? 'sorted ' . $query->order : 'sortable ' . $next_order;
+
+        // Sorting resets to page 1: the old page number is meaningless
+        // under a new order.
+        $url = $this->list_url( [ 'orderby' => $field, 'order' => $next_order, 'paged' => null ] );
+
+        return '<th scope="col" class="manage-column ' . esc_attr( $class ) . '">'
+            . '<a href="' . esc_url( $url ) . '">'
+            . '<span>' . esc_html( $label ) . '</span>'
+            . '<span class="sorting-indicator"></span>'
+            . '</a></th>';
+    }
+
+    /**
+     * Render the pagination tablenav under the list.
+     *
+     * @param int $total Unpaginated match count.
+     * @param ListQuery $query The current list query.
+     */
+    protected function render_pagination( int $total, ListQuery $query ): void {
+        if ( $query->per_page <= 0 ) {
+            return;
+        }
+
+        $total_pages = (int) ceil( $total / $query->per_page );
+
+        echo '<div class="tablenav bottom"><div class="tablenav-pages">';
+        echo '<span class="displaying-num">' . esc_html( sprintf( '%d items', $total ) ) . '</span>';
+
+        if ( $total_pages > 1 ) {
+            $links = paginate_links( [
+                'base'    => $this->list_url( [ 'paged' => '%#%' ] ),
+                'format'  => '',
+                'current' => $query->page,
+                'total'   => $total_pages,
+            ] );
+            if ( is_string( $links ) ) {
+                echo '<span class="pagination-links">' . $links . '</span>';
+            }
+        }
+
+        echo '</div></div>';
     }
 
     /**
@@ -512,19 +749,24 @@ class RequestRouter {
      * @return string HTML table.
      */
     protected function render_list_table( array $entities ): string {
-        $fields = array_keys( $this->config->fields );
+        $fields = $this->config->get_list_columns();
         $html   = '<table class="wp-list-table widefat fixed striped">';
 
         // Header.
         $html .= '<thead><tr>';
         foreach ( $fields as $field ) {
-            $html .= '<th>' . esc_html( ucfirst( $field ) ) . '</th>';
+            $html .= $this->render_column_header( $field );
         }
-        $html .= '<th>Actions</th>';
+        $html .= '<th scope="col" class="manage-column">Actions</th>';
         $html .= '</tr></thead>';
 
         // Body.
         $html .= '<tbody>';
+        if ( $entities === [] ) {
+            $html .= '<tr class="no-items"><td colspan="' . ( count( $fields ) + 1 ) . '">'
+                . esc_html( $this->get_label( 'not_found' ) )
+                . '</td></tr>';
+        }
         foreach ( $entities as $entity ) {
             $html .= '<tr>';
             foreach ( $fields as $field ) {

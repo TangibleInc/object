@@ -89,6 +89,45 @@ class PluralObject extends BaseDataObject {
         return $results;
     }
 
+    /**
+     * Return the entities matching a list query, ordered and paginated.
+     *
+     * Delegates to the storage when it can execute the query natively;
+     * otherwise applies the query in memory over all().
+     *
+     * @param ListQuery $query The list query.
+     * @return Entity[] The matching page of entities.
+     */
+    public function query( ListQuery $query ): array {
+        if ( $this->storage instanceof QueryablePluralStorage ) {
+            $results = [];
+            foreach ( $this->storage->query( $query ) as $data ) {
+                $results[] = $this->hydrateEntity( $data['id'], $data );
+            }
+            return $results;
+        }
+
+        $results = [];
+        foreach ( $query->apply( $this->storage->all() ) as $data ) {
+            $results[] = $this->hydrateEntity( $data['id'], $data );
+        }
+        return $results;
+    }
+
+    /**
+     * Count the entities matching a list query, ignoring pagination.
+     *
+     * @param ListQuery $query The list query.
+     * @return int The matching entity count.
+     */
+    public function count( ListQuery $query ): int {
+        if ( $this->storage instanceof QueryablePluralStorage ) {
+            return $this->storage->count( $query );
+        }
+
+        return $query->count_matching( $this->storage->all() );
+    }
+
     private function hydrateEntity( int $id, array $data ): Entity {
         $entity = new Entity( $data );
         $entity->set_id( $id );
