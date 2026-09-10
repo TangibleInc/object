@@ -2,6 +2,7 @@
 namespace Tangible\Object\Tests;
 
 use Tangible\DataObject\DataSet;
+use Tangible\DataObject\Filter;
 use Tangible\DataObject\ListQuery;
 use Tangible\DataObject\PluralObject;
 use Tangible\DataObject\PluralObject\Entity;
@@ -19,6 +20,7 @@ use Tangible\RequestHandler\Result;
  * and the RequestRouter's list rendering.
  *
  * @covers \Tangible\DataObject\ListQuery
+ * @covers \Tangible\DataObject\Filter
  * @covers \Tangible\DataObject\QueryablePluralStorage
  * @covers \Tangible\DataObject\PluralObject
  * @covers \Tangible\DataObject\Storage\DatabaseModuleStorage
@@ -149,6 +151,159 @@ class ListQuery_TestCase extends \WP_UnitTestCase {
         $this->assertCount( 2, $matched );
         $this->assertContainsOnlyInstancesOf( Entity::class, $matched );
         $this->assertSame( 2, $query->count_matching( $entities, $accessor ) );
+    }
+
+    /**
+     * ==========================================================================
+     * ListQuery: filter operators
+     * ==========================================================================
+     */
+
+    /**
+     * sample_rows() plus a nullable 'parent' and a row with a null weight,
+     * so the null rules have something to bite on.
+     */
+    private function nullable_rows(): array {
+        return [
+            [ 'id' => 1, 'title' => 'Alpha video', 'type' => 'video', 'weight' => 10, 'parent' => null ],
+            [ 'id' => 2, 'title' => 'beta text', 'type' => 'text', 'weight' => 2, 'parent' => 1 ],
+            [ 'id' => 3, 'title' => 'Gamma VIDEO guide', 'type' => 'video', 'weight' => 30, 'parent' => null ],
+            [ 'id' => 4, 'title' => 'Delta text', 'type' => 'text', 'weight' => 2, 'parent' => 3 ],
+            [ 'id' => 5, 'title' => 'Epsilon text', 'type' => 'text', 'weight' => null, 'parent' => 1 ],
+        ];
+    }
+
+    private function ids_matching( array $filters ): array {
+        return array_column(
+            ( new ListQuery( per_page: 0, filters: $filters ) )->apply( $this->nullable_rows() ),
+            'id'
+        );
+    }
+
+    public function test_plain_filter_values_normalize_to_filters(): void {
+        $this->assertSame( Filter::EQUALS, Filter::from( 'x' )->operator );
+        $this->assertSame( 'x', Filter::from( 'x' )->value );
+
+        $this->assertSame( Filter::IN, Filter::from( [ 'a', 'b' ] )->operator );
+        $this->assertSame( [ 'a', 'b' ], Filter::from( [ 'k' => 'a', 'b' ] )->value );
+
+        // A bare null keeps the long-standing loose-equality reading ('')
+        // rather than silently becoming IS NULL.
+        $this->assertSame( Filter::EQUALS, Filter::from( null )->operator );
+        $this->assertSame( '', Filter::from( null )->value );
+
+        $filter = Filter::is_null();
+        $this->assertSame( $filter, Filter::from( $filter ) );
+
+        $query = new ListQuery( filters: [ 'type' => 'video', 'parent' => $filter ] );
+        $this->assertSame( [ 'type' => 'video', 'parent' => $filter ], $query->filters );
+        $this->assertContainsOnlyInstancesOf( Filter::class, $query->constraints() );
+        $this->assertSame( [ 'type', 'parent' ], array_keys( $query->constraints() ) );
+    }
+
+    public function test_in_filter_rejects_non_scalar_items(): void {
+        $this->expectException( \InvalidArgumentException::class );
+
+        Filter::in( [ 'a', [ 'nested' ] ] );
+    }
+
+    public function test_null_filters_test_the_php_null_not_the_empty_string(): void {
+        $this->assertSame( [ 1, 3 ], $this->ids_matching( [ 'parent' => Filter::is_null() ] ) );
+        $this->assertSame( [ 2, 4, 5 ], $this->ids_matching( [ 'parent' => Filter::is_not_null() ] ) );
+
+        // '' is a value, not a null.
+        $this->assertFalse( Filter::is_null()->matches( '' ) );
+        $this->assertTrue( Filter::is_not_null()->matches( '' ) );
+    }
+
+    public function test_null_filter_on_missing_field_matches_nothing(): void {
+        $this->assertSame( [], $this->ids_matching( [ 'nonexistent' => Filter::is_null() ] ) );
+    }
+
+    public function test_not_equals_is_loose_and_keeps_null_rows(): void {
+        // Row 5's null weight stringifies to '' and so differs from '2'.
+        $this->assertSame( [ 1, 3, 5 ], $this->ids_matching( [ 'weight' => Filter::not_equals( 2 ) ] ) );
+        $this->assertSame( [ 1, 3, 5 ], $this->ids_matching( [ 'weight' => Filter::not_equals( '2' ) ] ) );
+
+        // ... but equals '' under the same loose rule.
+        $this->assertSame( [ 1, 2, 3, 4 ], $this->ids_matching( [ 'weight' => Filter::not_equals( '' ) ] ) );
+    }
+
+    public function test_in_filter_matches_any_listed_value(): void {
+        $this->assertSame( [ 2, 4, 5 ], $this->ids_matching( [ 'type' => Filter::in( [ 'text', 'nope' ] ) ] ) );
+        // Array shorthand.
+        $this->assertSame( [ 2, 4, 5 ], $this->ids_matching( [ 'type' => [ 'text', 'nope' ] ] ) );
+        // Loose: numeric ids listed as strings.
+        $this->assertSame( [ 1, 3 ], $this->ids_matching( [ 'id' => [ '1', '3' ] ] ) );
+        // An empty list matches nothing.
+        $this->assertSame( [], $this->ids_matching( [ 'type' => [] ] ) );
+    }
+
+    public function test_comparison_filters_follow_the_ordering_rule(): void {
+        // Numeric pairs compare numerically; null sorts before every value.
+        $this->assertSame( [ 2, 4, 5 ], $this->ids_matching( [ 'weight' => Filter::less_than( 10 ) ] ) );
+        $this->assertSame( [ 1, 2, 4, 5 ], $this->ids_matching( [ 'weight' => Filter::at_most( '10' ) ] ) );
+        $this->assertSame( [ 1, 3 ], $this->ids_matching( [ 'weight' => Filter::greater_than( 2 ) ] ) );
+        $this->assertSame( [ 1, 3 ], $this->ids_matching( [ 'weight' => Filter::at_least( 10 ) ] ) );
+
+        // Strings compare case-insensitively: 'Alpha…' and 'beta…' < 'c'.
+        $this->assertSame( [ 1, 2 ], $this->ids_matching( [ 'title' => Filter::less_than( 'c' ) ] ) );
+    }
+
+    public function test_filters_on_different_fields_combine_as_and(): void {
+        $this->assertSame(
+            [ 2 ],
+            $this->ids_matching( [ 'type' => 'text', 'weight' => Filter::is_not_null(), 'parent' => Filter::less_than( 3 ) ] )
+        );
+    }
+
+    /**
+     * ==========================================================================
+     * ListQuery: multi-column ordering
+     * ==========================================================================
+     */
+
+    public function test_ordering_array_sorts_key_by_key(): void {
+        $rows  = $this->sample_rows();
+        $query = new ListQuery( per_page: 0, orderby: [ 'type' => 'asc', 'weight' => 'desc' ] );
+
+        // text (2, 4 — equal weights keep storage order), then video 30 before 10.
+        $this->assertSame( [ 2, 4, 3, 1 ], array_column( $query->apply( $rows ), 'id' ) );
+        $this->assertSame( [ 'type' => 'asc', 'weight' => 'desc' ], $query->ordering );
+
+        // The single-column view exposes the primary key.
+        $this->assertSame( 'type', $query->orderby );
+        $this->assertSame( 'asc', $query->order );
+    }
+
+    public function test_ordering_list_takes_the_shared_direction(): void {
+        $query = new ListQuery( per_page: 0, orderby: [ 'type', 'weight' ], order: 'DESC' );
+
+        $this->assertSame( [ 'type' => 'desc', 'weight' => 'desc' ], $query->ordering );
+        $this->assertSame( [ 3, 1, 2, 4 ], array_column( $query->apply( $this->sample_rows() ), 'id' ) );
+    }
+
+    public function test_single_orderby_string_is_a_one_key_ordering(): void {
+        $query = new ListQuery( orderby: 'weight', order: 'desc' );
+        $this->assertSame( [ 'weight' => 'desc' ], $query->ordering );
+
+        $empty = new ListQuery();
+        $this->assertSame( [], $empty->ordering );
+        $this->assertSame( '', $empty->orderby );
+        $this->assertSame( 'asc', $empty->order );
+    }
+
+    public function test_ordering_ignores_blank_and_repeated_fields(): void {
+        $query = new ListQuery( orderby: [ '' => 'desc', 'type' => 'asc', 'type' => 'desc', 'weight' ] );
+
+        $this->assertSame( [ 'type' => 'desc', 'weight' => 'asc' ], $query->ordering );
+    }
+
+    public function test_unknown_ordering_key_falls_through_to_the_next(): void {
+        $rows  = $this->sample_rows();
+        $query = new ListQuery( per_page: 0, orderby: [ 'nonexistent' => 'asc', 'weight' => 'desc' ] );
+
+        $this->assertSame( [ 3, 1, 2, 4 ], array_column( $query->apply( $rows ), 'id' ) );
     }
 
     /**
@@ -321,6 +476,12 @@ class ListQuery_TestCase extends \WP_UnitTestCase {
                     'type'   => 'bigint',
                     'length' => '20',
                 ],
+                'parent' => [
+                    'type'     => 'bigint',
+                    'length'   => '20',
+                    'nullable' => true,
+                    'default'  => null,
+                ],
             ],
         ] );
 
@@ -329,9 +490,10 @@ class ListQuery_TestCase extends \WP_UnitTestCase {
 
     private function seed_tdb( DatabaseModuleStorage $storage ): void {
         $storage->insert( [ 'title' => 'Alpha video', 'category' => 'video', 'weight' => 10 ] );
-        $storage->insert( [ 'title' => 'beta text', 'category' => 'text', 'weight' => 2 ] );
+        $storage->insert( [ 'title' => 'beta text', 'category' => 'text', 'weight' => 2, 'parent' => 1 ] );
         $storage->insert( [ 'title' => 'Gamma VIDEO guide', 'category' => 'video', 'weight' => 30 ] );
-        $storage->insert( [ 'title' => 'Delta text', 'category' => 'text', 'weight' => 2 ] );
+        $storage->insert( [ 'title' => 'Delta text', 'category' => 'text', 'weight' => 2, 'parent' => 3 ] );
+        $storage->insert( [ 'title' => 'Epsilon text', 'category' => 'text', 'weight' => 5, 'parent' => 1 ] );
     }
 
     public function test_tdb_storage_implements_queryable_interface(): void {
@@ -358,6 +520,23 @@ class ListQuery_TestCase extends \WP_UnitTestCase {
             new ListQuery( page: 2, per_page: 2, orderby: 'title', order: 'asc' ),
             new ListQuery( per_page: 0, filters: [ 'nonexistent' => 'x' ] ),
             new ListQuery( per_page: 0, search: 'anything', search_fields: [ 'nonexistent' ] ),
+            // Filter operators, including the NULL edge cases.
+            new ListQuery( per_page: 0, filters: [ 'parent' => Filter::is_null() ] ),
+            new ListQuery( per_page: 0, filters: [ 'parent' => Filter::is_not_null() ] ),
+            new ListQuery( per_page: 0, filters: [ 'parent' => Filter::not_equals( 1 ) ] ),
+            new ListQuery( per_page: 0, filters: [ 'parent' => Filter::not_equals( '' ) ] ),
+            new ListQuery( per_page: 0, filters: [ 'parent' => [ 1, 3 ] ] ),
+            new ListQuery( per_page: 0, filters: [ 'category' => [] ] ),
+            new ListQuery( per_page: 0, filters: [ 'parent' => Filter::less_than( 3 ) ] ),
+            new ListQuery( per_page: 0, filters: [ 'parent' => Filter::at_most( 1 ) ] ),
+            new ListQuery( per_page: 0, filters: [ 'weight' => Filter::greater_than( 2 ) ] ),
+            new ListQuery( per_page: 0, filters: [ 'weight' => Filter::at_least( 10 ) ] ),
+            new ListQuery( per_page: 0, filters: [ 'nonexistent' => Filter::is_null() ] ),
+            new ListQuery( per_page: 0, filters: [ 'category' => 'text', 'parent' => Filter::is_not_null() ], search: 'text', search_fields: [ 'title' ] ),
+            // Multi-column ordering, with and without an unknown key.
+            new ListQuery( per_page: 0, orderby: [ 'category' => 'asc', 'title' => 'desc' ] ),
+            new ListQuery( page: 2, per_page: 2, orderby: [ 'category', 'nonexistent', 'title' ], order: 'desc' ),
+            new ListQuery( per_page: 0, orderby: [ 'parent' => 'desc', 'id' => 'desc' ] ),
         ];
 
         $all = $storage->all();
