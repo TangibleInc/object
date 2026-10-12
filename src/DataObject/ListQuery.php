@@ -19,11 +19,13 @@ namespace Tangible\DataObject;
  * - The DataView RequestRouter builds it from list-page request
  *   parameters (paged / orderby / order / s / filter_*).
  *
- * The in-memory helpers define the reference semantics: filters are
- * string-loose equality, search is a case-insensitive substring match
- * over the declared search fields, ordering compares numerically when
- * both values are numeric and case-insensitively otherwise. Storage
- * implementations should preserve these semantics.
+ * The in-memory helpers define the reference semantics: a plain filter
+ * value is string-loose equality and a Filter instance selects another
+ * operator (IN, IS NULL, comparisons — see Filter::matches()), search
+ * is a case-insensitive substring match over the declared search
+ * fields, ordering compares numerically when both values are numeric
+ * and case-insensitively otherwise, key by key when several are given.
+ * Storage implementations should preserve these semantics.
  */
 class ListQuery {
 
@@ -42,18 +44,29 @@ class ListQuery {
     public readonly int $per_page;
 
     /**
-     * Field to order by. Empty string preserves storage order.
+     * Primary field to order by. Empty string preserves storage order.
+     *
+     * The first key of $ordering, kept for callers that only know a
+     * single sort column.
      *
      * @var string
      */
     public readonly string $orderby;
 
     /**
-     * Order direction: 'asc' or 'desc'.
+     * Direction of the primary order field: 'asc' or 'desc'.
      *
      * @var string
      */
     public readonly string $order;
+
+    /**
+     * The full ordering, field => 'asc'|'desc', in priority order.
+     * Empty preserves storage order.
+     *
+     * @var array<string, string>
+     */
+    public readonly array $ordering;
 
     /**
      * Search term. Empty string means no search.
@@ -71,27 +84,39 @@ class ListQuery {
     public readonly array $search_fields;
 
     /**
-     * Field filters as field => value equality constraints.
+     * Field filters as given: field => scalar (equality), scalar[] (IN)
+     * or Filter. See constraints() for the normalized form.
      *
-     * @var array<string, scalar>
+     * @var array<string, scalar|array|Filter>
      */
     public readonly array $filters;
 
     /**
+     * The filters normalized to Filter instances, field => Filter.
+     *
+     * @var array<string, Filter>
+     */
+    private array $constraints;
+
+    /**
      * Create a new ListQuery, normalizing out-of-range values.
      *
-     * @param int      $page          Page number (clamped to >= 1).
-     * @param int      $per_page      Items per page (clamped to >= 0; 0 = unpaginated).
-     * @param string   $orderby       Field to order by ('' = storage order).
-     * @param string   $order         'asc' or 'desc' (anything else becomes 'asc').
-     * @param string   $search        Search term.
-     * @param string[] $search_fields Fields to search in.
-     * @param array    $filters       Field => value equality filters.
+     * Ordering accepts a single field name, or an array for multi-column
+     * ordering: field => 'asc'|'desc' pairs in priority order, or a plain
+     * list of field names that all take $order.
+     *
+     * @param int          $page          Page number (clamped to >= 1).
+     * @param int          $per_page      Items per page (clamped to >= 0; 0 = unpaginated).
+     * @param string|array $orderby       Field to order by ('' = storage order), or an ordering array.
+     * @param string       $order         'asc' or 'desc' (anything else becomes 'asc').
+     * @param string       $search        Search term.
+     * @param string[]     $search_fields Fields to search in.
+     * @param array        $filters       Field => scalar, scalar[] or Filter constraints.
      */
     public function __construct(
         int $page = 1,
         int $per_page = 20,
-        string $orderby = '',
+        string|array $orderby = '',
         string $order = 'asc',
         string $search = '',
         array $search_fields = [],
@@ -99,11 +124,32 @@ class ListQuery {
     ) {
         $this->page          = max( 1, $page );
         $this->per_page      = max( 0, $per_page );
-        $this->orderby       = $orderby;
-        $this->order         = strtolower( $order ) === 'desc' ? 'desc' : 'asc';
         $this->search        = $search;
         $this->search_fields = array_values( $search_fields );
         $this->filters       = $filters;
+
+        $default_order = strtolower( $order ) === 'desc' ? 'desc' : 'asc';
+        $ordering      = [];
+
+        foreach ( is_string( $orderby ) ? [ $orderby ] : $orderby as $key => $value ) {
+            if ( is_int( $key ) ) {
+                $field     = (string) $value;
+                $direction = $default_order;
+            } else {
+                $field     = (string) $key;
+                $direction = strtolower( (string) $value ) === 'desc' ? 'desc' : 'asc';
+            }
+            if ( $field === '' || isset( $ordering[ $field ] ) ) {
+                continue;
+            }
+            $ordering[ $field ] = $direction;
+        }
+
+        $this->ordering = $ordering;
+        $this->orderby  = (string) ( array_key_first( $ordering ) ?? '' );
+        $this->order    = $ordering[ $this->orderby ] ?? $default_order;
+
+        $this->constraints = array_map( [ Filter::class, 'from' ], $filters );
     }
 
     /**
@@ -116,23 +162,29 @@ class ListQuery {
     }
 
     /**
+     * The filters as Filter instances, field => Filter, so storages can
+     * translate operators without repeating the shorthand rules.
+     *
+     * @return array<string, Filter> The normalized constraints.
+     */
+    public function constraints(): array {
+        return $this->constraints;
+    }
+
+    /**
      * Whether a data row matches the search term and filters.
      *
      * @param array $row Field => value data row.
      * @return bool True when the row survives search and filters.
      */
     public function matches( array $row ): bool {
-        foreach ( $this->filters as $field => $value ) {
+        foreach ( $this->constraints as $field => $filter ) {
+            // A filter on a field the row does not have matches nothing,
+            // whatever the operator.
             if ( ! array_key_exists( $field, $row ) ) {
                 return false;
             }
-            $actual = $row[ $field ];
-            if ( ! is_scalar( $actual ) && $actual !== null ) {
-                return false;
-            }
-            // String-loose equality: filter values usually arrive from
-            // URLs as strings while stored values may be int or bool.
-            if ( (string) $actual !== (string) $value ) {
+            if ( ! $filter->matches( $row[ $field ] ) ) {
                 return false;
             }
         }
@@ -192,14 +244,18 @@ class ListQuery {
             fn( $item ) => $this->matches( $row( $item ) )
         ) );
 
-        if ( $this->orderby !== '' ) {
+        if ( $this->ordering !== [] ) {
             // usort() is stable in PHP 8, so equal keys keep storage order.
             usort( $matched, function ( $a, $b ) use ( $row ) {
-                $result = $this->compare_values(
-                    $row( $a )[ $this->orderby ] ?? null,
-                    $row( $b )[ $this->orderby ] ?? null
-                );
-                return $this->order === 'desc' ? -$result : $result;
+                $row_a = $row( $a );
+                $row_b = $row( $b );
+                foreach ( $this->ordering as $field => $direction ) {
+                    $result = $this->compare_values( $row_a[ $field ] ?? null, $row_b[ $field ] ?? null );
+                    if ( $result !== 0 ) {
+                        return $direction === 'desc' ? -$result : $result;
+                    }
+                }
+                return 0;
             } );
         }
 
@@ -214,19 +270,14 @@ class ListQuery {
      * Compare two field values for ordering.
      *
      * Numeric pairs compare numerically, everything else compares as
-     * case-insensitive strings. Nulls sort before any value.
+     * case-insensitive strings. Nulls sort before any value. The same
+     * rule drives comparison filters (Filter::compare()).
      *
      * @param mixed $a First value.
      * @param mixed $b Second value.
      * @return int Spaceship-style comparison result.
      */
     protected function compare_values( mixed $a, mixed $b ): int {
-        if ( $a === null || $b === null ) {
-            return ( $a === null ? 0 : 1 ) <=> ( $b === null ? 0 : 1 );
-        }
-        if ( is_numeric( $a ) && is_numeric( $b ) ) {
-            return $a <=> $b;
-        }
-        return strcasecmp( (string) $a, (string) $b );
+        return Filter::compare( $a, $b );
     }
 }

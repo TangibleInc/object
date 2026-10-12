@@ -2,6 +2,7 @@
 
 namespace Tangible\DataObject\Storage;
 
+use Tangible\DataObject\Filter;
 use Tangible\DataObject\ListQuery;
 use Tangible\DataObject\QueryablePluralStorage;
 use TDB_Table;
@@ -14,9 +15,10 @@ use TDB_Table;
  * table storage for entities.
  *
  * Schema fields are real table columns, so ListQuery executes natively:
- * filters and search become a prepared WHERE clause, ordering becomes
- * ORDER BY on a schema-whitelisted column, pagination becomes LIMIT/OFFSET.
- * Nothing outside the requested page is loaded into PHP.
+ * filters (equality, IN, IS NULL, comparisons) and search become a
+ * prepared WHERE clause, ordering becomes ORDER BY on schema-whitelisted
+ * columns, pagination becomes LIMIT/OFFSET. Nothing outside the requested
+ * page is loaded into PHP.
  *
  * @see https://bitbucket.org/tangibleinc/tangible-database-module
  */
@@ -217,12 +219,12 @@ class DatabaseModuleStorage implements QueryablePluralStorage {
         $columns = $this->schema_columns();
         $clauses = [];
 
-        foreach ( $query->filters as $field => $value ) {
+        foreach ( $query->constraints() as $field => $filter ) {
             $column = $this->normalize_column( (string) $field );
             if ( ! in_array( $column, $columns, true ) ) {
                 return ' WHERE 1 = 0';
             }
-            $clauses[] = $wpdb->prepare( "`{$column}` = %s", (string) $value );
+            $clauses[] = $this->build_filter_clause( $column, $filter );
         }
 
         if ( $query->search !== '' ) {
@@ -249,25 +251,80 @@ class DatabaseModuleStorage implements QueryablePluralStorage {
     }
 
     /**
-     * Build the ORDER BY clause. Unknown order fields preserve storage
-     * order, matching the in-memory fallback.
+     * Translate one Filter into a prepared SQL predicate on a
+     * whitelisted column.
+     *
+     * Mirrors Filter::matches(): there a stored null stringifies to ''
+     * for equality and sorts before every value for comparisons, so the
+     * SQL keeps NULL rows wherever the in-memory rule would keep them
+     * (<> against a non-empty value, < and <=).
+     *
+     * @param string $column Backtick-safe column name.
+     * @param Filter $filter The constraint.
+     * @return string SQL predicate.
+     */
+    protected function build_filter_clause( string $column, Filter $filter ): string {
+        $wpdb  = $GLOBALS['wpdb'];
+        $value = is_scalar( $filter->value ) ? (string) $filter->value : '';
+
+        switch ( $filter->operator ) {
+            case Filter::IS_NULL:
+                return "`{$column}` IS NULL";
+
+            case Filter::IS_NOT_NULL:
+                return "`{$column}` IS NOT NULL";
+
+            case Filter::IN:
+                if ( $filter->value === [] ) {
+                    return '1 = 0';
+                }
+                $placeholders = implode( ', ', array_fill( 0, count( $filter->value ), '%s' ) );
+                return $wpdb->prepare(
+                    "`{$column}` IN ( {$placeholders} )",
+                    array_map( 'strval', $filter->value )
+                );
+
+            case Filter::NOT_EQUALS:
+                if ( $value === '' ) {
+                    return $wpdb->prepare( "`{$column}` <> %s", $value );
+                }
+                return $wpdb->prepare( "( `{$column}` IS NULL OR `{$column}` <> %s )", $value );
+
+            case Filter::LESS_THAN:
+            case Filter::AT_MOST:
+                return $wpdb->prepare( "( `{$column}` IS NULL OR `{$column}` {$filter->operator} %s )", $value );
+
+            case Filter::GREATER_THAN:
+            case Filter::AT_LEAST:
+                return $wpdb->prepare( "`{$column}` {$filter->operator} %s", $value );
+
+            case Filter::EQUALS:
+            default:
+                return $wpdb->prepare( "`{$column}` = %s", $value );
+        }
+    }
+
+    /**
+     * Build the ORDER BY clause, one term per ordering key. Unknown
+     * order fields are skipped — in the in-memory fallback they compare
+     * equal for every row and fall through to the next key.
      *
      * @param ListQuery $query The list query.
      * @return string Leading-space ORDER BY clause, or empty string.
      */
     protected function build_order( ListQuery $query ): string {
-        if ( $query->orderby === '' ) {
-            return '';
+        $columns = $this->schema_columns();
+        $terms   = [];
+
+        foreach ( $query->ordering as $field => $direction ) {
+            $column = $this->normalize_column( (string) $field );
+            if ( ! in_array( $column, $columns, true ) ) {
+                continue;
+            }
+            $terms[] = "`{$column}` " . ( $direction === 'desc' ? 'DESC' : 'ASC' );
         }
 
-        $column = $this->normalize_column( $query->orderby );
-        if ( ! in_array( $column, $this->schema_columns(), true ) ) {
-            return '';
-        }
-
-        $direction = $query->order === 'desc' ? 'DESC' : 'ASC';
-
-        return " ORDER BY `{$column}` {$direction}";
+        return $terms === [] ? '' : ' ORDER BY ' . implode( ', ', $terms );
     }
 
     /**
