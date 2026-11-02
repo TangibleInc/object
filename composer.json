@@ -14,7 +14,7 @@
   },
   "require": {
     "php": ">=8.1",
-    "symfony/yaml": "^6.4 || ^7.0"
+    "symfony/yaml": "^6.4 || ^7.0 || ^8.0"
   },
   "suggest": {
     "tangible/framework": "Optional. Provides settings-page styling and framework integration; normally already loaded by other Tangible plugins in the WordPress environment."
